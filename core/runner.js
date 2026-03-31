@@ -195,16 +195,20 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
 // ---------------------------------------------------------------------------
 
 async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log) {
-  if (step.actions?.length) {
-    await executeActions(page, step.actions);
+  try {
+    if (step.actions?.length) {
+      await executeActions(page, step.actions);
+    }
+    if (step.waitFor) {
+      await waitForCondition(page, step.waitFor);
+    }
+    if (step.hideISI) {
+      await hideISITray(page);
+    }
+    await captureStep(page, step, outputDir, seq, pageId, device, log);
+  } catch (err) {
+    await log(`  [skip] ${device}: ${pageId}-${step.id} — ${err.message}`);
   }
-  if (step.waitFor) {
-    await waitForCondition(page, step.waitFor);
-  }
-  if (step.hideISI) {
-    await hideISITray(page);
-  }
-  await captureStep(page, step, outputDir, seq, pageId, device, log);
 }
 
 async function captureStep(page, step, outputDir, seq, pageId, device, log) {

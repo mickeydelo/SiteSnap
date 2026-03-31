@@ -30,10 +30,13 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
   let slowMo         = 0;
 
   if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    // Lambda / Netlify Functions runtime: use @sparticuz/chromium
+    // Lambda / Netlify Functions runtime: use @sparticuz/chromium.
+    // Use a unique --user-data-dir per launch so desktop and mobile passes
+    // within the same invocation never share cookies or cached state.
     const sparticuz  = (await import('@sparticuz/chromium')).default;
     executablePath   = await sparticuz.executablePath();
-    args             = sparticuz.args;
+    const dataDir    = `/tmp/chromium-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    args             = [...sparticuz.args, `--user-data-dir=${dataDir}`];
   } else {
     // Local: playwright-core finds the playwright-installed chromium automatically
     const debug = process.env.SITESNAP_DEBUG === '1';
