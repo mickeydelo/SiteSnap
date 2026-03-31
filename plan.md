@@ -162,11 +162,23 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 - Client generates `jobId` with `crypto.randomUUID()` before POST; polling starts immediately (handles 202 with no body)
 - `sites/**` bundled with functions via `included_files` in `netlify.toml`
 
+### Netlify function architecture
+- `/api/run` → `api-run.mjs` (regular function): validates params, writes initial job state to Blobs **immediately** so polling can start, then fire-and-forgets a POST to `api-run-background` and returns 200.
+- `api-run-background.mjs` (background function): does the Playwright work, updates Blobs as it goes.
+- This split ensures the job always exists in Blobs before the client starts polling, even if the background worker cold-starts slowly.
+
+### Browser / Playwright on Netlify
+- `core/browser.js` uses `playwright-core` as a **static import** (works everywhere).
+- Locally: `playwright-core` auto-discovers the chromium that `npm run setup` installs to `~/.cache/ms-playwright/`. No code change needed for local dev.
+- On Netlify: `@sparticuz/chromium` is loaded via dynamic `import()` and supplies `executablePath` + `args`.
+- `playwright` (full package) is in `devDependencies` only — used for `npm run setup`, never imported at runtime, never bundled by esbuild.
+- `playwright-core` and `@sparticuz/chromium` are both in `external_node_modules` so esbuild doesn't inline them.
+
 ### Deploy to Netlify
 1. Push repo to GitHub
 2. Connect repo in Netlify dashboard
 3. Build settings are auto-detected from `netlify.toml`
-4. No environment variables required — Blobs context is injected automatically
+4. No environment variables required — Blobs context and `process.env.URL` are injected automatically by Netlify
 
 ---
 

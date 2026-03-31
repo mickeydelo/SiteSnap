@@ -448,6 +448,7 @@
       config:        null,
       activePage:    0,
       pollTimer:     null,
+      pollStarted:   null,
       jobId:         null,
       renderedCount: 0,
     };
@@ -722,13 +723,27 @@
     function startPoll(id) {
       state.jobId         = id;
       state.renderedCount = 0;
+      state.pollStarted   = Date.now();
       state.pollTimer = setInterval(async () => {
         try {
           const res = await fetch(`/api/status/${state.jobId}`);
+
+          // Non-JSON response (function crashed, redirect misconfigured, etc.)
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            // If stuck for more than 30s with no valid response, surface the error
+            if (Date.now() - state.pollStarted > 30000) {
+              stopPoll();
+              overlayError(`Server error (HTTP ${res.status}). Check Netlify function logs.`);
+              document.getElementById('capture-btn').disabled = false;
+            }
+            return;
+          }
+
           const job = await res.json();
 
-          // Job not created yet (Netlify background function still starting up)
-          if (!job.status) return;
+          // Job not created yet (background function still cold-starting — keep waiting)
+          if (!job || !job.status) return;
 
           // Status text (latest plain log line)
           if (job.lastLog) {
@@ -781,8 +796,13 @@
             overlayError(job.error ?? 'An unexpected error occurred.');
             document.getElementById('capture-btn').disabled = false;
           }
-        } catch {
-          // transient network error — keep polling
+        } catch (err) {
+          // Transient network error — keep polling, but give up after 30s of silence
+          if (Date.now() - state.pollStarted > 30000) {
+            stopPoll();
+            overlayError(`Network error: ${err.message}`);
+            document.getElementById('capture-btn').disabled = false;
+          }
         }
       }, 2000);
     }

@@ -6,10 +6,12 @@
   node_bundler = "esbuild"
   # sites/** holds config.json / metadata.json — bundled with every function
   included_files = ["sites/**"]
-  # @sparticuz/chromium ships a large pre-built binary; must not be inlined by esbuild
-  external_node_modules = ["@sparticuz/chromium"]
+  # Keep these as-is (not inlined by esbuild); Netlify deploys them alongside the bundle.
+  # playwright-core: used by browser.js at runtime
+  # @sparticuz/chromium: large pre-built binary, must not be inlined
+  external_node_modules = ["@sparticuz/chromium", "playwright-core"]
 
-# Extra memory + max timeout for the Playwright run
+# Extra memory + max timeout for the Playwright background worker
 [functions.api-run-background]
   memory  = 3008
   timeout = 900
@@ -30,9 +32,10 @@
   status = 200
   force  = true
 
+# Regular function: writes initial job state, then triggers background worker
 [[redirects]]
   from   = "/api/run"
-  to     = "/.netlify/functions/api-run-background"
+  to     = "/.netlify/functions/api-run"
   status = 200
   force  = true
 

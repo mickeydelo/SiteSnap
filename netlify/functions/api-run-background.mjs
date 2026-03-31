@@ -3,49 +3,66 @@ import fs from 'fs';
 import { getStore } from '@netlify/blobs';
 import { run } from '../../core/runner.js';
 
+// LAMBDA_TASK_ROOT is where Netlify deploys included_files (sites/**).
+// Locally this function is never called directly (Express handles /api/run).
 const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   ? path.join(process.env.LAMBDA_TASK_ROOT, 'sites')
-  : new URL('../../sites', import.meta.url).pathname;
+  : path.join(process.cwd(), 'sites');
 
 export const handler = async (event) => {
-  const { jobId, siteId, username, password, config: configOverride } =
-    JSON.parse(event.body || '{}');
+  let body;
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return;
+  }
 
+  const { jobId, siteId, username, password, config: configOverride } = body;
   if (!jobId || !siteId || !username || !password) return;
 
-  const siteDir = path.join(SITES_DIR, siteId);
-  if (!fs.existsSync(path.join(siteDir, 'config.json'))) return;
+  const jobsStore        = getStore('sitesnap-jobs');
+  const screenshotsStore = getStore('sitesnap-screenshots');
+  const zipsStore        = getStore('sitesnap-zips');
 
-  const jobsStore         = getStore('sitesnap-jobs');
-  const screenshotsStore  = getStore('sitesnap-screenshots');
-  const zipsStore         = getStore('sitesnap-zips');
-
-  // Write initial state so the status poll finds the job immediately.
-  const jobState = {
-    status: 'running', total: 0, entries: [], lastLog: null, error: null,
-  };
-  await jobsStore.setJSON(jobId, jobState);
-
-  const onProgress = async (msg) => {
-    if (!msg) return;
-    if (typeof msg === 'object') {
-      if (msg.type === 'total') {
-        jobState.total = msg.total;
-      } else if (msg.type === 'capture') {
-        const idx    = jobState.entries.length;
-        const buffer = fs.readFileSync(msg.filepath);
-        await screenshotsStore.set(`${jobId}/${idx}`, buffer, {
-          metadata: { contentType: 'image/png' },
-        });
-        jobState.entries.push({ label: msg.label, index: idx });
-      }
-    } else if (typeof msg === 'string') {
-      jobState.lastLog = msg.trim();
-    }
-    await jobsStore.setJSON(jobId, { ...jobState });
-  };
+  // Helper: update job state in Blobs (best-effort, never throws)
+  const setJob = (patch) =>
+    jobsStore.setJSON(jobId, patch).catch(e => console.error('[bg] setJob failed:', e));
 
   try {
+    const siteDir = path.join(SITES_DIR, siteId);
+    if (!fs.existsSync(path.join(siteDir, 'config.json'))) {
+      await setJob({ status: 'error', error: `Site not found: ${siteId}`, entries: [], total: 0, lastLog: null });
+      return;
+    }
+
+    // Shared mutable state updated by onProgress and flushed to Blobs
+    const jobState = {
+      status: 'running', total: 0, entries: [], lastLog: 'Starting…', error: null,
+    };
+
+    const onProgress = async (msg) => {
+      if (!msg) return;
+      try {
+        if (typeof msg === 'object') {
+          if (msg.type === 'total') {
+            jobState.total = msg.total;
+          } else if (msg.type === 'capture') {
+            const idx    = jobState.entries.length;
+            const buffer = fs.readFileSync(msg.filepath);
+            await screenshotsStore.set(`${jobId}/${idx}`, buffer, {
+              metadata: { contentType: 'image/png' },
+            });
+            jobState.entries.push({ label: msg.label, index: idx });
+          }
+        } else if (typeof msg === 'string') {
+          jobState.lastLog = msg.trim();
+        }
+        await jobsStore.setJSON(jobId, { ...jobState });
+      } catch (e) {
+        console.error('[bg] onProgress error:', e);
+      }
+    };
+
     const zipPath = await run(
       siteDir,
       { username, password },
@@ -54,17 +71,22 @@ export const handler = async (event) => {
       '/tmp',
     );
 
+    // Upload ZIP to Blobs then clean up /tmp
     const zipBuffer = fs.readFileSync(zipPath);
-    await zipsStore.set(jobId, zipBuffer, {
-      metadata: { contentType: 'application/zip' },
-    });
+    await zipsStore.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
     fs.unlinkSync(zipPath);
 
     jobState.status = 'done';
     await jobsStore.setJSON(jobId, { ...jobState });
+
   } catch (err) {
-    jobState.status = 'error';
-    jobState.error  = err.message;
-    await jobsStore.setJSON(jobId, { ...jobState });
+    console.error('[bg] Run failed:', err);
+    await setJob({
+      status:  'error',
+      error:   err.message,
+      entries: [],
+      total:   0,
+      lastLog: null,
+    });
   }
 };

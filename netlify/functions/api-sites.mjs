@@ -4,7 +4,7 @@ import fs from 'fs';
 // On Lambda, included_files land at LAMBDA_TASK_ROOT; locally at project root.
 const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   ? path.join(process.env.LAMBDA_TASK_ROOT, 'sites')
-  : new URL('../../sites', import.meta.url).pathname;
+  : path.join(process.cwd(), 'sites');
 
 export const handler = async () => {
   if (!fs.existsSync(SITES_DIR)) {

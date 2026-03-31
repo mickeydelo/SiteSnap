@@ -1,3 +1,8 @@
+// Always use playwright-core. Locally it auto-discovers the chromium that
+// `npx playwright install chromium` downloads to ~/.cache/ms-playwright/.
+// On Netlify, @sparticuz/chromium supplies the executable and launch args.
+import { chromium } from 'playwright-core';
+
 export const DESKTOP_VIEWPORT = { width: 1442, height: 900 };
 export const MOBILE_VIEWPORT  = { width: 390,  height: 800 };
 
@@ -11,10 +16,6 @@ const MOBILE_UA =
 
 /**
  * Launch a Playwright browser + context + page.
- * Each call returns an isolated session with no shared state.
- *
- * On Netlify/Lambda: uses @sparticuz/chromium + playwright-core.
- * Locally:           uses the installed playwright package.
  *
  * @param {{ width: number, height: number }} viewport
  * @param {{ username: string, password: string } | null} credentials
@@ -23,27 +24,24 @@ const MOBILE_UA =
 export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = null) {
   const isMobile = viewport.width <= 768;
 
-  let browser;
+  let executablePath = undefined; // undefined = playwright-core auto-discovers locally
+  let args           = ['--no-first-run', '--no-default-browser-check'];
+  let headless       = true;
+  let slowMo         = 0;
 
   if (process.env.NETLIFY) {
-    // ── Netlify / Lambda ───────────────────────────────────────────────────
-    const chromium = (await import('@sparticuz/chromium')).default;
-    const { chromium: pw } = await import('playwright-core');
-    browser = await pw.launch({
-      args:           chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless:       true,
-    });
+    // Lambda: use @sparticuz/chromium for the executable and recommended args
+    const sparticuz  = (await import('@sparticuz/chromium')).default;
+    executablePath   = await sparticuz.executablePath();
+    args             = sparticuz.args;
   } else {
-    // ── Local development ──────────────────────────────────────────────────
+    // Local: playwright-core finds the playwright-installed chromium automatically
     const debug = process.env.SITESNAP_DEBUG === '1';
-    const { chromium } = await import('playwright');
-    browser = await chromium.launch({
-      headless: !debug,
-      slowMo:   debug ? 600 : 0,
-      args: ['--no-first-run', '--no-default-browser-check'],
-    });
+    headless    = !debug;
+    slowMo      = debug ? 600 : 0;
   }
+
+  const browser = await chromium.launch({ executablePath, args, headless, slowMo });
 
   const context = await browser.newContext({
     viewport,
