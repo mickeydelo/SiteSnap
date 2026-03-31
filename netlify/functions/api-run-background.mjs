@@ -67,7 +67,9 @@ export const handler = async (event) => {
     );
 
     const zipBuffer = fs.readFileSync(zipPath);
+    console.log(`[bg] ZIP size: ${zipBuffer.length} bytes`);
     await zips.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
+    console.log('[bg] ZIP uploaded to Blobs');
     fs.unlinkSync(zipPath);
 
     jobState.status = 'done';

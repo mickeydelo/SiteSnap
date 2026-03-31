@@ -35,7 +35,7 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
     // with no shared cookies, cache, or session storage between device passes.
     const sparticuz = (await import('@sparticuz/chromium')).default;
     executablePath  = await sparticuz.executablePath();
-    args            = [...sparticuz.args, '--incognito'];
+    args            = sparticuz.args;
   } else {
     // Local: playwright-core finds the playwright-installed chromium automatically
     const debug = process.env.SITESNAP_DEBUG === '1';

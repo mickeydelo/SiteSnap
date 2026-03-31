@@ -1,7 +1,5 @@
 import { jobsStore, zipsStore } from './_blobs.mjs';
 
-// v2 function format — returns a native Response so the ZIP streams directly
-// from Netlify Blobs to the browser without hitting the 6 MB Lambda payload limit.
 export default async (req) => {
   const url      = new URL(req.url);
   const segments = url.pathname.split('/').filter(Boolean);
@@ -14,17 +12,19 @@ export default async (req) => {
     return new Response('Not ready', { status: 404 });
   }
 
-  const stream = await zipsStore().get(jobId, { type: 'stream' });
-  if (!stream) return new Response('ZIP not found', { status: 404 });
+  // Use arrayBuffer — more reliable than stream when Blobs uses explicit credentials.
+  // The v2 function Response handles large buffers without the 6 MB Lambda limit.
+  const buffer = await zipsStore().get(jobId, { type: 'arrayBuffer' });
+  if (!buffer) return new Response('ZIP not found', { status: 404 });
 
-  return new Response(stream, {
+  return new Response(new Uint8Array(buffer), {
     status: 200,
     headers: {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="sitesnap-${jobId.slice(0, 8)}.zip"`,
+      'Content-Length': String(buffer.byteLength),
     },
   });
 };
 
-// v2 path config — Netlify registers this route directly, no redirect needed.
 export const config = { path: '/api/download/:jobId' };
