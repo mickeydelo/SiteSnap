@@ -4,7 +4,7 @@
  * @param {import('playwright').Page} page
  * @param {number} timeout ms
  */
-export async function waitForNetworkIdle(page, timeout = 5000) {
+export async function waitForNetworkIdle(page, timeout = 3000) {
   try {
     await page.waitForLoadState('networkidle', { timeout });
   } catch {
@@ -48,9 +48,26 @@ export async function hideISITray(page) {
 export async function waitForCondition(page, condition) {
   switch (condition) {
     case 'no-results':
-      // Let any in-flight filter XHRs complete, then allow DOM to settle
-      await waitForNetworkIdle(page);
-      await page.waitForTimeout(1500);
+      // executeActions already waited for networkidle after each select —
+      // just give the DOM a short tick to finish rendering the empty state.
+      await page.waitForTimeout(600);
+      // Mobile: close the filters modal so the filtered page is visible in the screenshot
+      try {
+        const modal = page.locator('.filters-modal.is-open, [role="dialog"][aria-modal="true"]').first();
+        if (await modal.isVisible({ timeout: 400 })) {
+          // Try common close/apply buttons inside the modal first
+          const closeBtn = modal.locator(
+            'button:has-text("Apply"), button:has-text("Done"), ' +
+            'button:has-text("Close"), button[class*="close" i], button[aria-label*="close" i]'
+          ).first();
+          if (await closeBtn.isVisible({ timeout: 500 })) {
+            await closeBtn.click();
+          } else {
+            await page.keyboard.press('Escape');
+          }
+          await page.waitForTimeout(400);
+        }
+      } catch { /* no modal open */ }
       break;
     case 'network-idle':
       await waitForNetworkIdle(page);

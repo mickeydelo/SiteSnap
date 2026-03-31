@@ -14,7 +14,7 @@ export async function executeActions(page, actions) {
   for (const action of actions) {
     await executeAction(page, action);
     if (NETWORK_ACTIONS.has(action.type)) {
-      await waitForNetworkIdle(page, 3000);
+      await waitForNetworkIdle(page, 2000);
     } else {
       await page.waitForTimeout(100); // input / checkbox — no network, just a repaint tick
     }
@@ -183,10 +183,25 @@ async function selectOption(page, label, value) {
     }
   } catch { /* not native */ }
 
-  // 2. Open the custom dropdown via any of these triggers
+  // 2. Mobile: filters may be behind a toggle button (e.g. a "Filters" pill that opens
+  //    a modal dialog containing the real dropdowns). Open it if not already open.
+  try {
+    const alreadyOpen = await page.locator('.filters-modal.is-open').count();
+    if (alreadyOpen === 0) {
+      const toggle = page.locator(
+        '.filters-toggle button, [class*="filters-toggle"] button'
+      ).first();
+      if (await toggle.isVisible({ timeout: 800 })) {
+        await toggle.click();
+        await page.waitForTimeout(500);
+      }
+    }
+  } catch { /* not present on this page/device */ }
+
+  // 3. Open the custom dropdown via any of these triggers
   await openDropdownTrigger(page, label);
 
-  // 3. Pick the option — try every known pattern for custom dropdown lists
+  // 4. Pick the option — try every known pattern for custom dropdown lists
   await pickDropdownOption(page, value);
 }
 
@@ -283,16 +298,25 @@ async function handleCheckbox(page, label, value) {
       if (value === true  && !(await cb.isChecked())) await cb.check();
       if (value === false &&  (await cb.isChecked())) await cb.uncheck();
     },
-    // 3. Any checkbox adjacent to text containing the label
+    // 3. Force-check the first attached checkbox — handles custom-styled checkboxes
+    //    where the native <input> is visually hidden (opacity:0, width:0, etc.)
+    async () => {
+      const cb = page.locator('input[type="checkbox"]').first();
+      await cb.waitFor({ state: 'attached', timeout: 3000 });
+      if (value === true  && !(await cb.isChecked())) await cb.check({ force: true });
+      if (value === false &&  (await cb.isChecked())) await cb.uncheck({ force: true });
+    },
+    // 4. Any checkbox adjacent to text containing the label
     async () => {
       const cb = page.locator('input[type="checkbox"]')
         .filter({ has: page.locator(`xpath=./following-sibling::*[contains(., "${label}")]`) })
         .first();
       await cb.waitFor({ state: 'attached', timeout: 3000 });
-      if (value === true  && !(await cb.isChecked())) await cb.check();
-      if (value === false &&  (await cb.isChecked())) await cb.uncheck();
+      if (value === true  && !(await cb.isChecked())) await cb.check({ force: true });
+      if (value === false &&  (await cb.isChecked())) await cb.uncheck({ force: true });
     },
-    // 4. JavaScript — find by label text, fall back to first visible checkbox
+    // 5. JavaScript — find by label text, fall back to first attached checkbox.
+    //    Dispatches both click and change events for React/Vue forms.
     async () => {
       const done = await page.evaluate((searchLabel, targetValue) => {
         const norm = t => t.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -310,15 +334,21 @@ async function handleCheckbox(page, label, value) {
           }
         }
 
-        // Fall back to the first visible checkbox on the form
+        // Fall back to any non-disabled checkbox (including visually hidden ones)
         if (!cb) {
           cb = [...document.querySelectorAll('input[type="checkbox"]')]
-            .find(el => el.offsetParent !== null); // visible check
+            .find(el => !el.disabled);
         }
 
         if (!cb) return false;
-        if (targetValue && !cb.checked)  cb.click();
-        if (!targetValue && cb.checked)  cb.click();
+        if (targetValue && !cb.checked) {
+          cb.click();
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (!targetValue && cb.checked) {
+          cb.click();
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         return true;
       }, label, value);
 

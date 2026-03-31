@@ -77,8 +77,6 @@ async function runDevice(config, credentials, outputDir, device, log) {
   const seq = new Sequence();
 
   try {
-    let authenticated = false;
-
     for (const pageCfg of config.pages) {
       const steps = enabledSteps(pageCfg, device);
       if (!steps.length) continue;
@@ -86,7 +84,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
       if (pageCfg.type === 'external') {
         // ── External / interstitial captures
         for (const step of steps) {
-          await captureExternal(page, browser, config, credentials, pageCfg, step, outputDir, seq, device, log);
+          await captureExternal(page, config, pageCfg, step, outputDir, seq, device, log);
         }
 
       } else if (pageCfg.includesEntry) {
@@ -105,7 +103,6 @@ async function runDevice(config, credentials, outputDir, device, log) {
 
         // Auto-login if a login form is now present
         await injectLogin(page, credentials);
-        authenticated = true;
 
         // Phase 2: post-entry (overlays gone, ISI tray still showing)
         for (const step of steps.filter(s => s.phase === 'post-entry')) {
@@ -140,7 +137,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
 // External / interstitial captures
 // ---------------------------------------------------------------------------
 
-async function captureExternal(page, browser, config, credentials, pageCfg, step, outputDir, seq, device, log) {
+async function captureExternal(page, config, pageCfg, step, outputDir, seq, device, log) {
   try {
     const triggerUrl = `${config.baseUrl}${pageCfg.triggerPage ?? '/'}`;
     await navigate(page, triggerUrl);
@@ -220,6 +217,9 @@ async function captureStep(page, step, outputDir, seq, pageId, device, log) {
 
 async function captureHamburger(page, outputDir, seq, log) {
   const selectors = [
+    // Site-specific: Gatsby header nav toggle
+    '#gatsby-focus-wrapper > header > div.container > div > button',
+    // Generic ARIA / class patterns
     'button[aria-label*="menu" i]',
     'button[aria-label*="navigation" i]',
     'button[aria-label*="nav" i]',
