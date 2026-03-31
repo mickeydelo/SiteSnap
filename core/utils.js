@@ -54,21 +54,22 @@ export async function waitForCondition(page, condition) {
       // executeActions already waited for networkidle after each select —
       // just give the DOM a short tick to finish rendering the empty state.
       await page.waitForTimeout(600);
-      // Mobile: close the filters modal so the filtered page is visible in the screenshot
+      // Mobile: close the filters modal so the filtered page is visible in the screenshot.
+      // Use count() (sync-ish) to avoid burning a timeout when no modal is present.
       try {
-        const modal = page.locator('.filters-modal.is-open, [role="dialog"][aria-modal="true"]').first();
-        if (await modal.isVisible({ timeout: 400 })) {
-          // Try common close/apply buttons inside the modal first
+        const open = await page.locator('.filters-modal.is-open').count();
+        if (open > 0) {
+          const modal   = page.locator('.filters-modal.is-open').first();
           const closeBtn = modal.locator(
             'button:has-text("Apply"), button:has-text("Done"), ' +
             'button:has-text("Close"), button[class*="close" i], button[aria-label*="close" i]'
           ).first();
-          if (await closeBtn.isVisible({ timeout: 500 })) {
+          if (await closeBtn.isVisible({ timeout: 300 })) {
             await closeBtn.click();
           } else {
             await page.keyboard.press('Escape');
           }
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(300);
         }
       } catch { /* no modal open */ }
       break;
