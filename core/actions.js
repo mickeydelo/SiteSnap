@@ -84,8 +84,13 @@ export async function clickByText(page, text) {
   }
 
   const strategies = [
-    // 0a. data-content attribute — used by utility nav links on this site
-    async () => page.locator(`[data-content="${text}"]`).first().click({ timeout: 5000 }),
+    // 0a. data-content attribute — used by utility nav links on this site.
+    //     Use JS dispatchEvent so href="#" / href="/" anchors don't navigate.
+    async () => {
+      const el = page.locator(`[data-content="${text}"]`).first();
+      await el.waitFor({ state: 'attached', timeout: 5000 });
+      await el.dispatchEvent('click');
+    },
     // 0b. href-based anchor fallback for external links whose text is split across spans
     async () => {
       const hit = await page.evaluate(searchText => {

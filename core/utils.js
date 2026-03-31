@@ -73,6 +73,16 @@ export async function waitForCondition(page, condition) {
         }
       } catch { /* no modal open */ }
       break;
+    case 'isi-expanded':
+      // Wait for the ISI drawer to gain the --expanded modifier class
+      try {
+        await page.locator('.isi-tray.isi-drawer--expanded, .isi-drawer--expanded')
+          .waitFor({ state: 'visible', timeout: 5000 });
+      } catch {
+        // Fallback: just give the animation a beat
+        await page.waitForTimeout(800);
+      }
+      break;
     case 'network-idle':
       await waitForNetworkIdle(page);
       break;

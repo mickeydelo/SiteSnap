@@ -46,7 +46,8 @@
           "includeMobile": true,
           "actions": [
             { "type": "click", "text": "Important Safety Information" }
-          ]
+          ],
+          "waitFor": "isi-expanded"
         },
         {
           "id": "full-page",
