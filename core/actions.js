@@ -14,7 +14,7 @@ export async function executeActions(page, actions) {
   for (const action of actions) {
     await executeAction(page, action);
     if (NETWORK_ACTIONS.has(action.type)) {
-      await waitForNetworkIdle(page, 1200);
+      await waitForNetworkIdle(page, 800);
     } else {
       await page.waitForTimeout(100); // input / checkbox — no network, just a repaint tick
     }

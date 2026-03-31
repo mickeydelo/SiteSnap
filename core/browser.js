@@ -59,6 +59,11 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
     }),
   });
 
+  // Block third-party analytics, tracking, and ad requests.
+  // These keep the network perpetually busy on pharma sites and prevent
+  // waitForNetworkIdle from resolving, adding seconds per page.
+  await context.route(/google-analytics\.com|googletagmanager\.com|doubleclick\.net|googlesyndication\.com|adobe\.com\/b\/ss|omtrdc\.net|demdex\.net|everesttech\.net|scorecardresearch\.com|quantserve\.com|hotjar\.com|segment\.io|segment\.com|sentry\.io|newrelic\.com|nr-data\.net|optimizely\.com|heap\.io|mixpanel\.com|clarity\.ms/, route => route.abort());
+
   const page = await context.newPage();
   return { browser, context, page };
 }
