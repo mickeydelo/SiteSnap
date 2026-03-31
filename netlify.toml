@@ -51,11 +51,6 @@
   status = 200
   force  = true
 
-[[redirects]]
-  from   = "/api/download/:jobId"
-  to     = "/.netlify/functions/api-download?jobId=:jobId"
-  status = 200
-  force  = true
 
 # /run serves the run page (mirrors Express GET /run)
 [[redirects]]
