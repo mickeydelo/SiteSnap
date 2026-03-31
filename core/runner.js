@@ -6,6 +6,11 @@ import { captureScreenshot } from './capture.js';
 import { waitForNetworkIdle, hideISITray, waitForCondition } from './utils.js';
 import { zipDirectory } from './zip.js';
 
+const DEFAULTS = {
+  desktop: DESKTOP_VIEWPORT,
+  mobile:  MOBILE_VIEWPORT,
+};
+
 // ---------------------------------------------------------------------------
 // Sequential file-name counter
 // ---------------------------------------------------------------------------
@@ -22,38 +27,40 @@ class Sequence {
 // ---------------------------------------------------------------------------
 
 /**
- * Run a full desktop + mobile screenshot pass for the given site.
- *
- * @param {string} siteDir      Absolute path to the site folder (contains config.json)
+ * @param {string}  siteDir         Absolute path to the site folder
  * @param {{ username: string, password: string }} credentials
- * @returns {string} Absolute path to the output ZIP file
+ * @param {object|null} configOverride  Optional modified config from the UI
+ * @param {(msg: string) => void} [onProgress]
+ * @returns {string} Absolute path to the output ZIP
  */
-export async function run(siteDir, credentials) {
-  const config = JSON.parse(
-    fs.readFileSync(path.join(siteDir, 'config.json'), 'utf8')
-  );
+export async function run(siteDir, credentials, configOverride = null, onProgress = null) {
+  const config = configOverride
+    ?? JSON.parse(fs.readFileSync(path.join(siteDir, 'config.json'), 'utf8'));
 
-  // Timestamp: 2024-01-15T10-30-00  (colons replaced so it's filesystem-safe)
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[:.]/g, '-')
-    .slice(0, 19);
+  const log = msg => { if (typeof msg === 'string') console.log(msg); onProgress?.(msg); };
 
-  const runDir = path.join(siteDir, 'output', `run-${timestamp}`);
-  fs.mkdirSync(runDir, { recursive: true });
+  log({ type: 'total', total: countTotalCaptures(config) });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const runDir     = path.join(siteDir, 'output', `run-${timestamp}`);
+  const desktopDir = path.join(runDir, 'desktop');
+  const mobileDir  = path.join(runDir, 'mobile');
+
+  fs.mkdirSync(desktopDir, { recursive: true });
+  fs.mkdirSync(mobileDir,  { recursive: true });
 
   try {
-    console.log('\n[Desktop]');
-    await runDesktop(config, credentials, runDir);
+    log('[Desktop]');
+    await runDevice(config, credentials, desktopDir, 'desktop', log);
 
-    console.log('\n[Mobile]');
-    await runMobile(config, credentials, runDir);
+    log('[Mobile]');
+    await runDevice(config, credentials, mobileDir, 'mobile', log);
   } catch (err) {
     fs.rmSync(runDir, { recursive: true, force: true });
     throw err;
   }
 
-  console.log('\nPackaging…');
+  log('Packaging…');
   const zipPath = path.join(siteDir, 'output', `run-${timestamp}.zip`);
   await zipDirectory(runDir, zipPath);
   fs.rmSync(runDir, { recursive: true });
@@ -62,51 +69,67 @@ export async function run(siteDir, credentials) {
 }
 
 // ---------------------------------------------------------------------------
-// Desktop pass  (1442 × 900 default, full-height captures)
+// Device pass
 // ---------------------------------------------------------------------------
 
-async function runDesktop(config, credentials, runDir) {
-  const { browser, page } = await launchContext(DESKTOP_VIEWPORT);
+async function runDevice(config, credentials, outputDir, device, log) {
+  const { browser, page } = await launchContext(DEFAULTS[device], credentials);
   const seq = new Sequence();
 
   try {
-    // ── Entry: capture raw state (cookie banner, HCP gate, ISI tray all visible)
-    await page.goto(config.baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await waitForNetworkIdle(page);
-    await save(page, runDir, seq.next('entry'), { fullPage: true });
+    let authenticated = false;
 
-    // ── Dismiss overlays via entry actions
-    if (config.entry?.actions?.length) {
-      await executeActions(page, config.entry.actions);
-    }
-
-    // ── Auto-detect and fill login form if present
-    await injectLogin(page, credentials);
-
-    // ── Pages
     for (const pageCfg of config.pages) {
-      const url = `${config.baseUrl}${pageCfg.path}`;
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await waitForNetworkIdle(page);
+      const steps = enabledSteps(pageCfg, device);
+      if (!steps.length) continue;
 
-      if (pageCfg.actions?.length) {
-        await executeActions(page, pageCfg.actions);
+      if (pageCfg.type === 'external') {
+        // ── External / interstitial captures
+        for (const step of steps) {
+          await captureExternal(page, browser, config, credentials, pageCfg, step, outputDir, seq, device, log);
+        }
+
+      } else if (pageCfg.includesEntry) {
+        // ── Entry page (home) — interleaved auth sequence
+        await navigate(page, `${config.baseUrl}${pageCfg.path}`);
+
+        // Phase 1: pre-entry (raw state, all overlays visible)
+        for (const step of steps.filter(s => s.phase === 'pre-entry')) {
+          await captureStep(page, step, outputDir, seq, pageCfg.id, device, log);
+        }
+
+        // Run entry actions (dismiss cookie banner + HCP gate)
+        if (pageCfg.entryActions?.length) {
+          await executeActions(page, pageCfg.entryActions);
+        }
+
+        // Auto-login if a login form is now present
+        await injectLogin(page, credentials);
+        authenticated = true;
+
+        // Phase 2: post-entry (overlays gone, ISI tray still showing)
+        for (const step of steps.filter(s => s.phase === 'post-entry')) {
+          await captureStep(page, step, outputDir, seq, pageCfg.id, device, log);
+        }
+
+        // Mobile only: capture hamburger menu after login
+        if (device === 'mobile') {
+          await captureHamburger(page, outputDir, seq, log);
+        }
+
+        // Phase 3: authenticated (ISI tray can be hidden)
+        for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
+          await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
+        }
+
+      } else {
+        // ── Regular authenticated page
+        await navigate(page, `${config.baseUrl}${pageCfg.path}`);
+
+        for (const step of steps) {
+          await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
+        }
       }
-
-      if (pageCfg.waitFor) {
-        await waitForCondition(page, pageCfg.waitFor);
-      }
-
-      // Hide ISI tray right before every post-entry capture
-      await hideISITray(page);
-      await save(page, runDir, seq.next(pageCfg.name), {
-        fullPage: pageCfg.fullPage !== false,
-      });
-    }
-
-    // ── External site captures
-    if (config.externalCaptures?.length) {
-      await captureExternals(page, browser, config, runDir, seq);
     }
   } finally {
     await browser.close();
@@ -114,100 +137,88 @@ async function runDesktop(config, credentials, runDir) {
 }
 
 // ---------------------------------------------------------------------------
-// External captures  (open outbound links in isolated contexts)
+// External / interstitial captures
 // ---------------------------------------------------------------------------
 
-async function captureExternals(page, browser, config, runDir, seq) {
-  // Return to home page to locate outbound nav links
-  await page.goto(config.baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await waitForNetworkIdle(page);
-  await hideISITray(page);
-
-  for (const ext of config.externalCaptures) {
-    try {
-      const link = page.getByText(ext.triggerText, { exact: false }).first();
-      const href = await link.getAttribute('href');
-
-      if (!href) {
-        console.warn(`  [skip] No href found for "${ext.triggerText}"`);
-        continue;
-      }
-
-      const fullUrl = href.startsWith('http')
-        ? href
-        : new URL(href, config.baseUrl).toString();
-
-      // Isolated context — no session cookies from the main site
-      const extContext = await browser.newContext({
-        viewport: ext.viewport,
-        ignoreHTTPSErrors: true,
-      });
-      const extPage = await extContext.newPage();
-
-      await extPage.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await waitForNetworkIdle(extPage);
-
-      await save(extPage, runDir, seq.next(ext.name), { fullPage: false });
-      await extContext.close();
-    } catch (err) {
-      console.warn(`  [skip] External capture "${ext.name}": ${err.message}`);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Mobile pass  (390 × 800, includes hamburger menu capture)
-// ---------------------------------------------------------------------------
-
-async function runMobile(config, credentials, runDir) {
-  const { browser, page } = await launchContext(MOBILE_VIEWPORT);
-  const seq = new Sequence();
-
+async function captureExternal(page, browser, config, credentials, pageCfg, step, outputDir, seq, device, log) {
   try {
-    // ── Entry: raw state (cookie banner, HCP gate, ISI tray all visible)
-    await page.goto(config.baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await waitForNetworkIdle(page);
-    await save(page, runDir, seq.next('entry-mobile'), { fullPage: true });
-
-    // ── Dismiss overlays + login
-    if (config.entry?.actions?.length) {
-      await executeActions(page, config.entry.actions);
-    }
-    await injectLogin(page, credentials);
+    const triggerUrl = `${config.baseUrl}${pageCfg.triggerPage ?? '/'}`;
+    await navigate(page, triggerUrl);
     await hideISITray(page);
 
-    // ── Hamburger menu: open → capture → close
-    await captureHamburger(page, runDir, seq);
+    const filename = seq.next(`${pageCfg.id}-${step.id}`);
+    const filepath  = path.join(outputDir, filename);
 
-    // ── Pages
-    for (const pageCfg of config.pages) {
-      const url = `${config.baseUrl}${pageCfg.path}`;
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await waitForNetworkIdle(page);
+    // Listen for a popup before clicking — the interstitial may open in a new tab
+    const popupPromise = page.waitForEvent('popup', { timeout: 5000 }).catch(() => null);
 
-      if (pageCfg.actions?.length) {
-        await executeActions(page, pageCfg.actions);
-      }
+    const triggerText = step.trigger?.text;
+    if (!triggerText) throw new Error('step.trigger.text is required for external captures');
 
-      if (pageCfg.waitFor) {
-        await waitForCondition(page, pageCfg.waitFor);
-      }
+    await page.getByText(triggerText, { exact: false }).first().click({ timeout: 8000 });
 
-      await hideISITray(page);
-      await save(page, runDir, seq.next(`${pageCfg.name}-mobile`), {
-        fullPage: pageCfg.fullPage !== false,
-      });
+    const popup = await popupPromise;
+
+    if (popup) {
+      // Opened in a new tab — capture it and close
+      await waitForNetworkIdle(popup);
+      const stepViewport = step[device];
+      if (stepViewport) await popup.setViewportSize(stepViewport);
+      await popup.screenshot({ path: filepath, fullPage: false });
+      await popup.close();
+    } else {
+      // Interstitial appeared as a modal/overlay on the current page
+      await page.waitForTimeout(800);
+      const stepViewport = step[device];
+      if (stepViewport) await page.setViewportSize(stepViewport);
+      await page.screenshot({ path: filepath, fullPage: false });
+      if (stepViewport) await page.setViewportSize(DEFAULTS[device]);
+      // Dismiss modal
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
     }
-  } finally {
-    await browser.close();
+
+    log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
+  } catch (err) {
+    log(`  [skip] ${pageCfg.label} — ${err.message}`);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Hamburger nav
+// Helpers
 // ---------------------------------------------------------------------------
 
-async function captureHamburger(page, runDir, seq) {
+async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log) {
+  if (step.actions?.length) {
+    await executeActions(page, step.actions);
+  }
+  if (step.waitFor) {
+    await waitForCondition(page, step.waitFor);
+  }
+  if (step.hideISI) {
+    await hideISITray(page);
+  }
+  await captureStep(page, step, outputDir, seq, pageId, device, log);
+}
+
+async function captureStep(page, step, outputDir, seq, pageId, device, log) {
+  const filename = seq.next(`${pageId}-${step.id}`);
+  const filepath  = path.join(outputDir, filename);
+
+  if (step.captureMode === 'viewport') {
+    const stepViewport = step[device]; // e.g. step.desktop or step.mobile
+    if (stepViewport) await page.setViewportSize(stepViewport);
+    await page.screenshot({ path: filepath, fullPage: false });
+    if (stepViewport) await page.setViewportSize(DEFAULTS[device]); // restore
+  } else {
+    // fullPage — scrolls to trigger lazy load, then captures
+    await captureScreenshot(page, filepath, { fullPage: true });
+  }
+
+  log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
+}
+
+async function captureHamburger(page, outputDir, seq, log) {
   const selectors = [
     'button[aria-label*="menu" i]',
     'button[aria-label*="navigation" i]',
@@ -219,7 +230,6 @@ async function captureHamburger(page, runDir, seq) {
     '.menu-toggle',
     '[class*="hamburger"]',
     '[class*="menu-toggle"]',
-    '[class*="nav-toggle"]',
   ];
 
   for (const sel of selectors) {
@@ -227,26 +237,50 @@ async function captureHamburger(page, runDir, seq) {
       const btn = page.locator(sel).first();
       if (await btn.isVisible({ timeout: 1000 })) {
         await btn.click();
-        await page.waitForTimeout(600); // let menu animation finish
-        await save(page, runDir, seq.next('nav-open-mobile'), { fullPage: false });
-        await btn.click(); // close before page navigation
+        await page.waitForTimeout(600);
+
+        const filename = seq.next('nav-open-mobile');
+        const filepath = path.join(outputDir, filename);
+        await page.screenshot({ path: filepath, fullPage: false });
+        log({ type: 'capture', label: `  mobile: ${filename}`, filepath });
+
+        await btn.click(); // close before next navigation
         await page.waitForTimeout(300);
         return;
       }
     } catch {
-      // try next selector
+      // try next
     }
   }
-
-  console.warn('  [skip] Hamburger menu not found');
+  log('  [skip] Hamburger menu not found');
 }
 
-// ---------------------------------------------------------------------------
-// Shared save helper
-// ---------------------------------------------------------------------------
+async function navigate(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await waitForNetworkIdle(page);
+}
 
-async function save(page, runDir, filename, options) {
-  const filepath = path.join(runDir, filename);
-  await captureScreenshot(page, filepath, options);
-  console.log(`  ${filename}`);
+function countTotalCaptures(config) {
+  let total = 0;
+  for (const page of config.pages) {
+    total += enabledSteps(page, 'desktop').length;
+    const mobileSteps = enabledSteps(page, 'mobile');
+    total += mobileSteps.length;
+    if (page.includesEntry && mobileSteps.length > 0) total += 1; // hamburger
+  }
+  return total;
+}
+
+/**
+ * Return enabled steps for the given device, respecting `includeMobile` and
+ * `mobileOnly` / `desktopOnly` flags.
+ */
+function enabledSteps(pageCfg, device) {
+  return (pageCfg.steps ?? []).filter(step => {
+    if (!step.enabled) return false;
+    if (step.mobileOnly  && device === 'desktop') return false;
+    if (step.desktopOnly && device === 'mobile')  return false;
+    if (device === 'mobile' && step.includeMobile === false) return false;
+    return true;
+  });
 }

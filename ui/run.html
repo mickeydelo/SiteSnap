@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SiteSnap — Configure Run</title>
+  <style>
+    :root {
+      --primary:    #6366f1;
+      --primary-dk: #4f46e5;
+      --green:      #10b981;
+      --green-dk:   #059669;
+      --border:     #e5e7eb;
+      --bg:         #f4f5f7;
+      --surface:    #fff;
+      --text:       #111827;
+      --muted:      #6b7280;
+      --header-h:   58px;
+      --sidebar-w:  220px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 24px; gap: 16px;
+      z-index: 100;
+    }
+
+    .header-logo {
+      display: flex; align-items: center; gap: 8px;
+      text-decoration: none; color: var(--text);
+    }
+    .header-logo span {
+      font-size: 15px; font-weight: 700; letter-spacing: -.3px;
+    }
+
+    .header-divider {
+      width: 1px; height: 20px; background: var(--border);
+    }
+
+    .header-site {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      flex: 1;
+    }
+
+    .btn-capture {
+      padding: 8px 20px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px; font-weight: 600;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-capture:hover:not(:disabled) { background: var(--primary-dk); }
+    .btn-capture:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      margin-top: var(--header-h);
+      min-height: calc(100vh - var(--header-h));
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      position: sticky;
+      top: var(--header-h);
+      height: calc(100vh - var(--header-h));
+      overflow-y: auto;
+    }
+
+    .sidebar-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+      padding: 0 16px 10px;
+    }
+
+    .nav-item {
+      display: block; width: 100%;
+      padding: 9px 16px 9px 19px;
+      text-align: left; background: none; border: none;
+      border-left: 3px solid transparent;
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      cursor: pointer; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+      transition: color .12s, background .12s;
+    }
+    .nav-item:hover { color: var(--text); background: rgba(0,0,0,.03); }
+    .nav-item.active {
+      color: var(--primary);
+      border-left-color: var(--primary);
+      background: rgba(99,102,241,.06);
+      font-weight: 600;
+    }
+
+    /* ── Step list ── */
+    .step-list {
+      flex: 1; padding: 24px;
+      display: flex; flex-direction: column; gap: 12px;
+      min-width: 0;
+    }
+
+    .page-heading {
+      font-size: 17px; font-weight: 700; color: var(--text);
+      margin-bottom: 4px;
+    }
+    .page-subheading {
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* ── Step card ── */
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      transition: opacity .15s;
+    }
+    .step-card.is-disabled {
+      opacity: .45;
+    }
+    .step-card.is-disabled > *:not(.step-header) {
+      pointer-events: none;
+    }
+
+    .step-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .step-label {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      flex: 1;
+    }
+
+    .mode-badge {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 999px; font-size: 11px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .mode-badge.viewport  { background: #ede9fe; color: #6d28d9; }
+    .mode-badge.full-page { background: #dbeafe; color: #1e40af; }
+
+    .step-desc {
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 12px; line-height: 1.5;
+    }
+
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative; width: 34px; height: 19px; flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0; width: 0; height: 0; position: absolute;
+    }
+    .toggle-track {
+      position: absolute; inset: 0;
+      background: #d1d5db; border-radius: 999px;
+      cursor: pointer; transition: background .2s;
+    }
+    .toggle-switch input:checked ~ .toggle-track { background: var(--primary); }
+    .toggle-track::after {
+      content: ''; position: absolute;
+      width: 13px; height: 13px; border-radius: 50%;
+      background: #fff; left: 3px; top: 3px;
+      transition: transform .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggle-switch input:checked ~ .toggle-track::after { transform: translateX(15px); }
+
+    /* Dimensions */
+    .dims-section {
+      display: flex; flex-direction: column; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .dim-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dim-icon {
+      font-size: 13px; width: 20px; text-align: center; flex-shrink: 0;
+    }
+    .dim-label {
+      font-size: 12px; color: var(--muted); width: 52px; flex-shrink: 0;
+    }
+    .dim-input {
+      width: 64px; padding: 5px 8px;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; color: var(--text); text-align: center;
+      outline: none;
+    }
+    .dim-input:focus { border-color: var(--primary); }
+    .dim-sep { font-size: 12px; color: var(--muted); }
+
+    /* Editable action fields */
+    .actions-section {
+      margin-bottom: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .action-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .action-label {
+      font-size: 12px; color: var(--muted);
+      width: 120px; flex-shrink: 0;
+    }
+    .action-input {
+      flex: 1; padding: 5px 10px;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: 13px; color: var(--text);
+      outline: none;
+    }
+    .action-input:focus { border-color: var(--primary); }
+
+    /* Step footer */
+    .step-footer {
+      display: flex; align-items: center; gap: 8px;
+      border-top: 1px solid #f3f4f6;
+      padding-top: 10px; margin-top: 4px;
+    }
+    .incl-label {
+      font-size: 12px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer;
+    }
+    .incl-label input[type="checkbox"] {
+      width: 14px; height: 14px; accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .mobile-only-badge {
+      font-size: 11px; color: var(--primary);
+      background: rgba(99,102,241,.1);
+      padding: 2px 7px; border-radius: 999px;
+    }
+
+    /* Empty / loading states */
+    .empty {
+      font-size: 13px; color: var(--muted);
+      padding: 32px; text-align: center;
+    }
+    .skeleton {
+      height: 100px; background: linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+      border-radius: 10px;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── Progress overlay ── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+    .overlay.hidden { display: none; }
+
+    .overlay-card {
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 24px 28px;
+      width: 520px;
+      text-align: left;
+      box-shadow: 0 8px 40px rgba(0,0,0,.2);
+    }
+
+    .overlay-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .spinner {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border: 3px solid #e5e7eb;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .spinner.hidden { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .overlay-title {
+      font-size: 15px; font-weight: 700; margin-bottom: 2px;
+    }
+    .overlay-status {
+      font-size: 12px; color: var(--muted);
+      font-family: ui-monospace, monospace;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 360px;
+    }
+
+    /* Progress bar */
+    .progress-wrap { margin-bottom: 12px; }
+    .progress-bar {
+      height: 4px; background: #e5e7eb; border-radius: 999px; overflow: hidden;
+      margin-bottom: 5px;
+    }
+    .progress-fill {
+      height: 100%; background: var(--primary); border-radius: 999px;
+      width: 0%; transition: width .4s ease;
+    }
+    .progress-label { font-size: 11px; color: var(--muted); }
+
+    /* Capture list */
+    .capture-list {
+      max-height: 300px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 14px;
+    }
+    .capture-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .capture-row:last-child { border-bottom: none; }
+    .capture-thumb {
+      width: 150px; height: 84px;
+      object-fit: cover; object-position: top;
+      border-radius: 4px; background: #f3f4f6;
+      flex-shrink: 0; display: block;
+    }
+    .capture-label {
+      font-size: 12px; color: var(--text);
+      font-family: ui-monospace, monospace;
+      word-break: break-all; line-height: 1.5;
+    }
+
+    .btn-dl {
+      display: none; width: 100%;
+      padding: 10px; background: var(--green); color: #fff;
+      font-size: 14px; font-weight: 600;
+      border: none; border-radius: 8px;
+      cursor: pointer; text-decoration: none;
+      transition: background .15s;
+      margin-top: 4px; text-align: center;
+    }
+    .btn-dl:hover { background: var(--green-dk); }
+
+    .overlay-error {
+      font-size: 13px; color: #dc2626;
+      background: #fef2f2; border: 1px solid #fecaca;
+      border-radius: 6px; padding: 8px 12px;
+      margin-bottom: 12px; display: none;
+    }
+
+    .btn-close-overlay {
+      display: none; margin-top: 10px; width: 100%;
+      background: none; border: none;
+      font-size: 13px; color: var(--muted);
+      cursor: pointer; text-decoration: underline; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="header">
+    <a class="header-logo" href="/">
+      <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="7" fill="#6366f1"/>
+        <rect x="6" y="7" width="16" height="12" rx="2" fill="white" opacity=".9"/>
+        <circle cx="14" cy="13" r="3" fill="#6366f1"/>
+        <rect x="10" y="21" width="8" height="2" rx="1" fill="white" opacity=".6"/>
+      </svg>
+      <span>SiteSnap</span>
+    </a>
+    <div class="header-divider"></div>
+    <div class="header-site" id="header-site">Loading…</div>
+    <button class="btn-capture" id="capture-btn" disabled>Capture All</button>
+  </header>
+
+  <!-- ── Layout ── -->
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-label">Pages</div>
+    </nav>
+    <main class="step-list" id="step-list">
+      <div class="skeleton"></div>
+      <div class="skeleton" style="height:80px"></div>
+    </main>
+  </div>
+
+  <!-- ── Progress overlay ── -->
+  <div class="overlay hidden" id="overlay">
+    <div class="overlay-card">
+      <div class="overlay-header">
+        <div class="spinner" id="ov-spinner"></div>
+        <div style="min-width:0">
+          <div class="overlay-title" id="ov-title">Running…</div>
+          <div class="overlay-status" id="ov-status">Starting up</div>
+        </div>
+      </div>
+      <div class="progress-wrap" id="ov-progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="ov-progress-fill"></div></div>
+        <div class="progress-label" id="ov-progress-label">0 of 0</div>
+      </div>
+      <div class="capture-list" id="ov-captures"></div>
+      <div class="overlay-error" id="ov-error"></div>
+      <a class="btn-dl" id="ov-dl" href="#">Download ZIP</a>
+      <button class="btn-close-overlay" id="ov-close">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // ── State ────────────────────────────────────────────────────────────────
+    const state = {
+      siteId:        null,
+      siteName:      '',
+      credentials:   { username: '', password: '' },
+      config:        null,
+      activePage:    0,
+      pollTimer:     null,
+      jobId:         null,
+      renderedCount: 0,
+    };
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    async function boot() {
+      const params = new URLSearchParams(window.location.search);
+      state.siteId = params.get('site');
+
+      const username = sessionStorage.getItem('ss_username');
+      const password = sessionStorage.getItem('ss_password');
+
+      if (!state.siteId || !username || !password) {
+        window.location.href = '/';
+        return;
+      }
+
+      state.credentials = { username, password };
+
+      try {
+        const [config, sites] = await Promise.all([
+          fetch(`/api/config/${state.siteId}`).then(r => r.json()),
+          fetch('/api/sites').then(r => r.json()),
+        ]);
+
+        if (config.error) throw new Error(config.error);
+
+        state.config   = deepClone(config);
+        state.siteName = sites.find(s => s.id === state.siteId)?.name ?? state.siteId;
+
+        document.getElementById('header-site').textContent = state.siteName;
+        document.getElementById('capture-btn').disabled = false;
+
+        renderSidebar();
+        renderPage(0);
+      } catch (err) {
+        document.getElementById('step-list').innerHTML =
+          `<div class="empty">Failed to load config: ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    // ── Sidebar ──────────────────────────────────────────────────────────────
+    function renderSidebar() {
+      const nav = document.getElementById('sidebar');
+      nav.innerHTML = '<div class="sidebar-label">Pages</div>';
+
+      state.config.pages.forEach((page, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'nav-item' + (i === 0 ? ' active' : '');
+        btn.textContent = page.label;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.activePage = i;
+          renderPage(i);
+        });
+        nav.appendChild(btn);
+      });
+    }
+
+    // ── Page / steps ─────────────────────────────────────────────────────────
+    function renderPage(pageIndex) {
+      const page  = state.config.pages[pageIndex];
+      const list  = document.getElementById('step-list');
+      list.innerHTML = '';
+
+      const heading = el('div', { class: 'page-heading', text: page.label });
+      const sub     = page.path
+        ? el('div', { class: 'page-subheading', text: page.path })
+        : el('div', { class: 'page-subheading', text: page.type === 'external' ? 'External capture' : '' });
+      list.appendChild(heading);
+      list.appendChild(sub);
+
+      if (!page.steps?.length) {
+        list.appendChild(el('div', { class: 'empty', text: 'No steps configured for this page.' }));
+        return;
+      }
+
+      page.steps.forEach((step, stepIndex) => {
+        list.appendChild(renderStepCard(step, pageIndex, stepIndex));
+      });
+    }
+
+    // ── Step card ────────────────────────────────────────────────────────────
+    function renderStepCard(step, pageIndex, stepIndex) {
+      const card = el('div', { class: 'step-card' + (step.enabled ? '' : ' is-disabled') });
+
+      // Header: toggle + label + mode badge
+      const toggleEl = el('label', { class: 'toggle-switch' },
+        el('input', { type: 'checkbox', ...(step.enabled ? { checked: '' } : {}) }),
+        el('span', { class: 'toggle-track' })
+      );
+      toggleEl.querySelector('input').addEventListener('change', ev => {
+        patchStep(pageIndex, stepIndex, { enabled: ev.target.checked });
+        card.classList.toggle('is-disabled', !ev.target.checked);
+      });
+
+      const modeLabel = step.captureMode === 'fullPage' ? 'Full Page' : 'Viewport';
+      const modeClass = step.captureMode === 'fullPage' ? 'full-page' : 'viewport';
+
+      const header = el('div', { class: 'step-header' },
+        toggleEl,
+        el('span', { class: 'step-label', text: step.label }),
+        el('span', { class: `mode-badge ${modeClass}`, text: modeLabel })
+      );
+      card.appendChild(header);
+
+      // Description
+      if (step.description) {
+        card.appendChild(el('p', { class: 'step-desc', text: step.description }));
+      }
+
+      // Viewport dimension controls
+      if (step.captureMode === 'viewport') {
+        const dims = el('div', { class: 'dims-section' });
+
+        if (step.desktop) {
+          dims.appendChild(dimRow('🖥', 'Desktop', step.desktop, (w, h) => {
+            patchStep(pageIndex, stepIndex, { desktop: { width: w, height: h } });
+          }));
+        }
+        if (step.mobile && step.includeMobile !== false) {
+          dims.appendChild(dimRow('📱', 'Mobile', step.mobile, (w, h) => {
+            patchStep(pageIndex, stepIndex, { mobile: { width: w, height: h } });
+          }));
+        }
+        if (dims.children.length) card.appendChild(dims);
+      }
+
+      // Editable action fields
+      const editableActions = (step.actions ?? [])
+        .map((a, i) => ({ action: a, origIndex: i }))
+        .filter(({ action }) => action.editable && (action.type === 'input' || action.type === 'select'));
+
+      if (editableActions.length) {
+        const section = el('div', { class: 'actions-section' });
+        editableActions.forEach(({ action, origIndex }) => {
+          const input = el('input', {
+            class: 'action-input',
+            type: 'text',
+            value: action.value ?? '',
+          });
+          input.addEventListener('change', () => {
+            patchAction(pageIndex, stepIndex, origIndex, input.value);
+          });
+          section.appendChild(
+            el('div', { class: 'action-row' },
+              el('span', { class: 'action-label', text: action.label }),
+              input
+            )
+          );
+        });
+        card.appendChild(section);
+      }
+
+      // Footer: include mobile toggle (hidden for mobileOnly steps)
+      if (!step.mobileOnly) {
+        const cb = el('input', {
+          type: 'checkbox',
+          ...(step.includeMobile !== false ? { checked: '' } : {}),
+        });
+        cb.addEventListener('change', () => {
+          patchStep(pageIndex, stepIndex, { includeMobile: cb.checked });
+        });
+
+        card.appendChild(
+          el('div', { class: 'step-footer' },
+            el('label', { class: 'incl-label' }, cb, '  Include mobile')
+          )
+        );
+      } else {
+        card.appendChild(
+          el('div', { class: 'step-footer' },
+            el('span', { class: 'mobile-only-badge', text: 'Mobile only' })
+          )
+        );
+      }
+
+      return card;
+    }
+
+    function dimRow(icon, label, dims, onChange) {
+      const wInput = el('input', { class: 'dim-input', type: 'number', value: dims.width,  min: '320', max: '3840' });
+      const hInput = el('input', { class: 'dim-input', type: 'number', value: dims.height, min: '400', max: '3840' });
+
+      const update = () => {
+        const w = Math.max(320, Math.min(3840, Number(wInput.value) || dims.width));
+        const h = Math.max(400, Math.min(3840, Number(hInput.value) || dims.height));
+        wInput.value = w; hInput.value = h;
+        onChange(w, h);
+      };
+      wInput.addEventListener('change', update);
+      hInput.addEventListener('change', update);
+
+      return el('div', { class: 'dim-row' },
+        el('span', { class: 'dim-icon',  text: icon  }),
+        el('span', { class: 'dim-label', text: label }),
+        wInput,
+        el('span', { class: 'dim-sep', text: '×' }),
+        hInput
+      );
+    }
+
+    // ── State mutations ───────────────────────────────────────────────────────
+    function patchStep(pageIndex, stepIndex, patch) {
+      Object.assign(state.config.pages[pageIndex].steps[stepIndex], patch);
+    }
+
+    function patchAction(pageIndex, stepIndex, actionIndex, value) {
+      state.config.pages[pageIndex].steps[stepIndex].actions[actionIndex].value = value;
+    }
+
+    // ── Capture ───────────────────────────────────────────────────────────────
+    document.getElementById('capture-btn').addEventListener('click', startCapture);
+
+    async function startCapture() {
+      document.getElementById('capture-btn').disabled = true;
+      showOverlay('Running…', 'Starting up');
+
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            siteId:   state.siteId,
+            username: state.credentials.username,
+            password: state.credentials.password,
+            config:   state.config,
+          }),
+        });
+        const { jobId, error } = await res.json();
+        if (error) throw new Error(error);
+        startPoll(jobId);
+      } catch (err) {
+        overlayError(err.message);
+        document.getElementById('capture-btn').disabled = false;
+      }
+    }
+
+    function startPoll(id) {
+      state.jobId         = id;
+      state.renderedCount = 0;
+      state.pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/status/${state.jobId}`);
+          const job = await res.json();
+
+          // Status text (latest plain log line)
+          if (job.lastLog) {
+            document.getElementById('ov-status').textContent = job.lastLog.trim();
+          }
+
+          // Add new capture rows
+          const captureList = document.getElementById('ov-captures');
+          const entries = job.entries ?? [];
+          for (let i = state.renderedCount; i < entries.length; i++) {
+            const entry = entries[i];
+            const img = el('img', {
+              class: 'capture-thumb',
+              src:   `/api/thumbnail/${state.jobId}/${entry.index}`,
+              alt:   '',
+            });
+            const row = el('div', { class: 'capture-row' },
+              img,
+              el('span', { class: 'capture-label', text: entry.label.trim() })
+            );
+            captureList.appendChild(row);
+            captureList.scrollTop = captureList.scrollHeight;
+            state.renderedCount++;
+          }
+
+          // Update progress bar
+          const total = job.total ?? 0;
+          if (total > 0) {
+            const pct = Math.min(100, Math.round((state.renderedCount / total) * 100));
+            document.getElementById('ov-progress-fill').style.width = pct + '%';
+            document.getElementById('ov-progress-label').textContent =
+              `${state.renderedCount} of ${total}`;
+          }
+
+          if (job.status === 'done') {
+            stopPoll();
+            document.getElementById('ov-progress-fill').style.width = '100%';
+            document.getElementById('ov-progress-label').textContent =
+              `${state.renderedCount} of ${total}`;
+            const dl = document.getElementById('ov-dl');
+            dl.href          = `/api/download/${state.jobId}`;
+            dl.style.display = 'block';
+            document.getElementById('ov-spinner').classList.add('hidden');
+            document.getElementById('ov-title').textContent  = 'Done!';
+            document.getElementById('ov-status').textContent = 'Screenshots complete.';
+            document.getElementById('ov-close').style.display = 'block';
+            document.getElementById('capture-btn').disabled  = false;
+          } else if (job.status === 'error') {
+            stopPoll();
+            overlayError(job.error ?? 'An unexpected error occurred.');
+            document.getElementById('capture-btn').disabled = false;
+          }
+        } catch {
+          // transient network error — keep polling
+        }
+      }, 2000);
+    }
+
+    function stopPoll() {
+      clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
+
+    // ── Overlay helpers ───────────────────────────────────────────────────────
+    function showOverlay(title, status) {
+      document.getElementById('ov-title').textContent  = title;
+      document.getElementById('ov-status').textContent = status;
+      document.getElementById('ov-spinner').classList.remove('hidden');
+      document.getElementById('ov-dl').style.display    = 'none';
+      document.getElementById('ov-error').style.display = 'none';
+      document.getElementById('ov-close').style.display = 'none';
+      document.getElementById('ov-captures').innerHTML  = '';
+      document.getElementById('ov-progress-fill').style.width = '0%';
+      document.getElementById('ov-progress-label').textContent = '0 of 0';
+      document.getElementById('overlay').classList.remove('hidden');
+    }
+
+    function overlayError(msg) {
+      document.getElementById('ov-spinner').classList.add('hidden');
+      document.getElementById('ov-title').textContent   = 'Run failed';
+      document.getElementById('ov-status').textContent  = '';
+      const errEl = document.getElementById('ov-error');
+      errEl.textContent   = msg;
+      errEl.style.display = 'block';
+      document.getElementById('ov-close').style.display = 'block';
+    }
+
+    document.getElementById('ov-close').addEventListener('click', () => {
+      document.getElementById('overlay').classList.add('hidden');
+    });
+
+    // Dismiss on backdrop click
+    document.getElementById('overlay').addEventListener('click', e => {
+      if (e.target === e.currentTarget) {
+        document.getElementById('overlay').classList.add('hidden');
+      }
+    });
+
+    window.addEventListener('beforeunload', stopPoll);
+
+    // ── DOM builder ───────────────────────────────────────────────────────────
+    function el(tag, attrs = {}, ...children) {
+      const node = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k === 'class')     node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else                   node.setAttribute(k, v);
+      }
+      for (const child of children.flat()) {
+        if (child == null) continue;
+        node.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
+      }
+      return node;
+    }
+
+    function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+    function escHtml(str)   { return str.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    boot();
+  </script>
+</body>
+</html>

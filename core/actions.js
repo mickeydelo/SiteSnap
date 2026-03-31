@@ -7,11 +7,17 @@ import { waitForNetworkIdle } from './utils.js';
  * @param {import('playwright').Page} page
  * @param {object[]} actions
  */
+// Actions that may trigger network requests and need an idle wait after them.
+const NETWORK_ACTIONS = new Set(['click', 'acceptCookies', 'select']);
+
 export async function executeActions(page, actions) {
   for (const action of actions) {
     await executeAction(page, action);
-    await page.waitForTimeout(300);
-    await waitForNetworkIdle(page, 3000);
+    if (NETWORK_ACTIONS.has(action.type)) {
+      await waitForNetworkIdle(page, 3000);
+    } else {
+      await page.waitForTimeout(100); // input / checkbox — no network, just a repaint tick
+    }
   }
 }
 
@@ -32,15 +38,18 @@ async function executeAction(page, action) {
 // ---------------------------------------------------------------------------
 
 async function acceptCookies(page) {
+  // Scoped selectors first so we don't accidentally click a non-cookie button
   const candidates = [
     '#onetrust-accept-btn-handler',
     '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-    'button[id*="accept" i]',
-    '[aria-label*="accept" i][role="button"]',
+    '#onetrust-banner-sdk button[class*="accept"]',
+    '.ot-sdk-container button[class*="accept"]',
+    '[id*="cookie"] button[id*="accept" i]',
+    '[class*="cookie"] button[id*="accept" i]',
+    '[class*="cookie-banner"] button',
+    '[class*="cookie-consent"] button',
     'button:has-text("Accept All")',
     'button:has-text("Accept Cookies")',
-    'button:has-text("Accept")',
-    'button:has-text("Agree")',
     'button:has-text("Allow All")',
   ];
 
@@ -49,7 +58,8 @@ async function acceptCookies(page) {
       const el = page.locator(sel).first();
       if (await el.isVisible({ timeout: 2000 })) {
         await el.click();
-        await page.waitForTimeout(500);
+        // Give the page time to animate the banner out and render what's next
+        await page.waitForTimeout(900);
         return;
       }
     } catch {
@@ -63,10 +73,54 @@ async function acceptCookies(page) {
 // ---------------------------------------------------------------------------
 
 async function clickByText(page, text) {
+  // Wait up to 15 s for the element to be attached to the DOM before trying
+  // any click strategy. 'attached' fires earlier than 'visible' and lets us
+  // confirm the node exists even if it's still animating in.
+  try {
+    await page.getByText(text, { exact: false }).first()
+      .waitFor({ state: 'attached', timeout: 15000 });
+  } catch {
+    // Not found via getByText — keep going; the DOM-walk fallback will catch it.
+  }
+
   const strategies = [
-    () => page.getByRole('button', { name: text, exact: false }).first().click({ timeout: 5000 }),
-    () => page.getByRole('link',   { name: text, exact: false }).first().click({ timeout: 5000 }),
-    () => page.getByText(text, { exact: false }).first().click({ timeout: 5000 }),
+    // 0. Wait for .modal__content to be visible, then click .button--primary
+    //    inside it. Does NOT rely on text matching — works even if the label has
+    //    invisible characters or non-breaking spaces.
+    async () => {
+      await page.locator('.modal__content').first()
+        .waitFor({ state: 'visible', timeout: 8000 });
+      await page.locator('.modal__content .button--primary').first()
+        .click({ timeout: 5000 });
+    },
+    // 1. .button--primary filtered by text, normal click
+    async () => page.locator('button.button--primary, a.button--primary')
+      .filter({ hasText: text }).first().click({ timeout: 5000 }),
+    // 2. .button--primary filtered by text, force-click (mid-animation)
+    async () => page.locator('button.button--primary, a.button--primary')
+      .filter({ hasText: text }).first().click({ force: true, timeout: 5000 }),
+    // 3. Any modal/dialog container
+    async () => page
+      .locator('.modal__content, .modal, [role="dialog"], [class*="modal"]').first()
+      .getByText(text, { exact: false }).first().click({ timeout: 5000 }),
+    // 4. Standard ARIA roles
+    async () => page.getByRole('button', { name: text, exact: false }).first().click({ timeout: 5000 }),
+    async () => page.getByRole('link',   { name: text, exact: false }).first().click({ timeout: 5000 }),
+    // 5. Plain text locator
+    async () => page.getByText(text, { exact: false }).first().click({ timeout: 5000 }),
+    // 6. JavaScript DOM walk — normalises whitespace and &nbsp;, calls
+    //    .click() directly on the node, bypassing all Playwright checks.
+    async () => {
+      const hit = await page.evaluate(searchText => {
+        const norm = t => t.toLowerCase().replace(/[\s\u00a0]+/g, ' ').trim();
+        const needle = norm(searchText);
+        const els = [...document.querySelectorAll('button, a, [role="button"], [class*="btn"]')];
+        const match = els.find(el => norm(el.textContent).includes(needle));
+        if (match) { match.click(); return true; }
+        return false;
+      }, text);
+      if (!hit) throw new Error('DOM walk: no match');
+    },
   ];
 
   for (const attempt of strategies) {
@@ -74,9 +128,18 @@ async function clickByText(page, text) {
       await attempt();
       return;
     } catch {
-      // try next strategy
+      // try next
     }
   }
+
+  // ── All strategies failed — save a diagnostic screenshot ──────────────────
+  try {
+    const debugPath = `/tmp/sitesnap-click-debug-${Date.now()}.png`;
+    await page.screenshot({ path: debugPath, fullPage: false });
+    console.error(`\n[debug] Saved screenshot → ${debugPath}`);
+    const html = await page.evaluate(() => document.body.innerHTML.slice(0, 4000));
+    console.error('[debug] Body (first 4000 chars):\n', html, '\n');
+  } catch { /* best-effort */ }
 
   throw new Error(`Could not click element with text: "${text}"`);
 }
@@ -110,7 +173,7 @@ async function fillInput(page, label, value) {
 // ---------------------------------------------------------------------------
 
 async function selectOption(page, label, value) {
-  // 1. Native <select> via label association
+  // 1. Native <select>
   try {
     const el = page.getByLabel(label, { exact: false }).first();
     const isNative = await el.evaluate(e => e.tagName === 'SELECT').catch(() => false);
@@ -118,28 +181,86 @@ async function selectOption(page, label, value) {
       await el.selectOption({ label: value });
       return;
     }
-  } catch {
-    // not a native select
-  }
+  } catch { /* not native */ }
 
-  // 2. ARIA combobox
-  try {
-    const combo = page.getByRole('combobox', { name: label, exact: false }).first();
-    if (await combo.isVisible({ timeout: 1000 })) {
-      await combo.click();
-      await page.waitForTimeout(350);
-      await page.getByRole('option', { name: value, exact: false }).first().click({ timeout: 5000 });
+  // 2. Open the custom dropdown via any of these triggers
+  await openDropdownTrigger(page, label);
+
+  // 3. Pick the option — try every known pattern for custom dropdown lists
+  await pickDropdownOption(page, value);
+}
+
+async function openDropdownTrigger(page, label) {
+  const triggers = [
+    () => page.getByRole('combobox', { name: label, exact: false }).first().click({ timeout: 4000 }),
+    () => page.getByLabel(label, { exact: false }).first().click({ timeout: 4000 }),
+    // Heading / visible label text that acts as a dropdown toggle
+    () => page.getByText(label, { exact: false }).first().click({ timeout: 4000 }),
+  ];
+
+  for (const t of triggers) {
+    try {
+      await t();
+      // Wait for the dropdown list to open — look for any newly visible list
+      // container. If nothing matches in 2 s, fall through to the next trigger.
+      try {
+        await page.locator(
+          '[role="listbox"], [class*="dropdown__menu"], [class*="select__menu"], ' +
+          '[class*="dropdown-menu"], ul[class*="list"], [class*="options"]'
+        ).first().waitFor({ state: 'visible', timeout: 2000 });
+      } catch { /* dropdown may use different markup — keep going */ }
+      await page.waitForTimeout(300);
       return;
-    }
-  } catch {
-    // not a combobox
+    } catch { /* try next trigger */ }
+  }
+  throw new Error(`Could not open dropdown labelled: "${label}"`);
+}
+
+async function pickDropdownOption(page, value) {
+  // After the dropdown opens, try every reasonable way to locate the option.
+  // Custom dropdowns render as <li>, <div>, <span>, etc. — not always role=option.
+  const strategies = [
+    // ARIA roles
+    () => page.getByRole('option',  { name: value, exact: false }).first().click({ timeout: 4000 }),
+    () => page.getByRole('listbox').getByText(value, { exact: false }).first().click({ timeout: 4000 }),
+    // Common CSS patterns for custom dropdowns
+    () => page.locator(`[role="listbox"] [role="option"]:has-text("${value}")`).first().click({ timeout: 4000 }),
+    () => page.locator(`ul[role="listbox"] li`).filter({ hasText: value }).first().click({ timeout: 4000 }),
+    () => page.locator(`ul li`).filter({ hasText: value }).first().click({ timeout: 4000 }),
+    () => page.locator(`[class*="dropdown"] [class*="option"]`).filter({ hasText: value }).first().click({ timeout: 4000 }),
+    () => page.locator(`[class*="dropdown"] [class*="item"]`).filter({ hasText: value }).first().click({ timeout: 4000 }),
+    () => page.locator(`[class*="select"] [class*="option"]`).filter({ hasText: value }).first().click({ timeout: 4000 }),
+    () => page.locator(`[class*="menu"] [class*="item"]`).filter({ hasText: value }).first().click({ timeout: 4000 }),
+    // Broad fallback — any newly visible text node
+    () => page.getByText(value, { exact: true  }).first().click({ timeout: 4000 }),
+    () => page.getByText(value, { exact: false }).first().click({ timeout: 4000 }),
+    // JavaScript click on any element whose trimmed text matches
+    async () => {
+      const hit = await page.evaluate(val => {
+        const norm = t => t.replace(/[\s\u00a0]+/g, ' ').trim();
+        const needle = norm(val);
+        const candidates = [...document.querySelectorAll('li, [role="option"], [class*="item"], [class*="option"]')];
+        const match = candidates.find(el => norm(el.textContent) === needle
+          || norm(el.textContent).startsWith(needle));
+        if (match) { match.click(); return true; }
+        return false;
+      }, value);
+      if (!hit) throw new Error('DOM walk: no option match');
+    },
+  ];
+
+  for (const s of strategies) {
+    try { await s(); return; } catch { /* try next */ }
   }
 
-  // 3. Generic: click the label text to open the custom dropdown, then pick option
-  const trigger = page.getByText(label, { exact: false }).first();
-  await trigger.click({ timeout: 5000 });
-  await page.waitForTimeout(350);
-  await page.getByRole('option', { name: value, exact: false }).first().click({ timeout: 5000 });
+  // Diagnostic screenshot so the dropdown state is visible
+  try {
+    const debugPath = `/tmp/sitesnap-select-debug-${Date.now()}.png`;
+    await page.screenshot({ path: debugPath });
+    console.error(`[debug] Select failed — screenshot → ${debugPath}`);
+  } catch { /* best-effort */ }
+
+  throw new Error(`Could not select option: "${value}"`);
 }
 
 // ---------------------------------------------------------------------------
@@ -147,10 +268,69 @@ async function selectOption(page, label, value) {
 // ---------------------------------------------------------------------------
 
 async function handleCheckbox(page, label, value) {
-  const cb = page.getByLabel(label, { exact: false }).first();
-  const checked = await cb.isChecked();
-  if (value === true  && !checked) await cb.check();
-  if (value === false &&  checked) await cb.uncheck();
+  const strategies = [
+    // 1. Standard label association with a short timeout
+    async () => {
+      const cb = page.getByLabel(label, { exact: false }).first();
+      await cb.waitFor({ state: 'attached', timeout: 5000 });
+      if (value === true  && !(await cb.isChecked())) await cb.check();
+      if (value === false &&  (await cb.isChecked())) await cb.uncheck();
+    },
+    // 2. <label> element containing the text, with a nested checkbox
+    async () => {
+      const cb = page.locator(`label:has-text("${label}") input[type="checkbox"]`).first();
+      await cb.waitFor({ state: 'attached', timeout: 3000 });
+      if (value === true  && !(await cb.isChecked())) await cb.check();
+      if (value === false &&  (await cb.isChecked())) await cb.uncheck();
+    },
+    // 3. Any checkbox adjacent to text containing the label
+    async () => {
+      const cb = page.locator('input[type="checkbox"]')
+        .filter({ has: page.locator(`xpath=./following-sibling::*[contains(., "${label}")]`) })
+        .first();
+      await cb.waitFor({ state: 'attached', timeout: 3000 });
+      if (value === true  && !(await cb.isChecked())) await cb.check();
+      if (value === false &&  (await cb.isChecked())) await cb.uncheck();
+    },
+    // 4. JavaScript — find by label text, fall back to first visible checkbox
+    async () => {
+      const done = await page.evaluate((searchLabel, targetValue) => {
+        const norm = t => t.toLowerCase().replace(/\s+/g, ' ').trim();
+        const needle = norm(searchLabel);
+
+        // Try to find via <label> element
+        let cb = null;
+        for (const lbl of document.querySelectorAll('label')) {
+          if (norm(lbl.textContent).includes(needle)) {
+            const forId = lbl.getAttribute('for');
+            cb = forId
+              ? document.getElementById(forId)
+              : lbl.querySelector('input[type="checkbox"]');
+            if (cb) break;
+          }
+        }
+
+        // Fall back to the first visible checkbox on the form
+        if (!cb) {
+          cb = [...document.querySelectorAll('input[type="checkbox"]')]
+            .find(el => el.offsetParent !== null); // visible check
+        }
+
+        if (!cb) return false;
+        if (targetValue && !cb.checked)  cb.click();
+        if (!targetValue && cb.checked)  cb.click();
+        return true;
+      }, label, value);
+
+      if (!done) throw new Error('JS: checkbox not found');
+    },
+  ];
+
+  for (const s of strategies) {
+    try { await s(); return; } catch { /* try next */ }
+  }
+
+  throw new Error(`Could not handle checkbox: "${label}"`);
 }
 
 // ---------------------------------------------------------------------------

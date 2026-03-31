@@ -1,53 +1,153 @@
 {
   "baseUrl": "https://dev.imcivreehcp.com",
 
-  "entry": {
-    "actions": [
-      { "type": "acceptCookies" },
-      { "type": "click", "text": "I am a US healthcare professional" }
-    ]
-  },
-
   "pages": [
     {
-      "name": "home",
+      "id": "home",
+      "label": "Home Page",
       "path": "/",
-      "fullPage": true
-    },
-    {
-      "name": "resources",
-      "path": "/resources/",
-      "actions": [
-        { "type": "select", "label": "Audience", "value": "For your patient" },
-        { "type": "select", "label": "Journey",  "value": "Disease education" }
+      "includesEntry": true,
+      "entryActions": [
+        { "type": "acceptCookies" },
+        { "type": "click", "text": "I am a US healthcare professional" }
       ],
-      "waitFor": "no-results",
-      "fullPage": true
-    },
-    {
-      "name": "get-connected",
-      "path": "/get-connected/",
-      "actions": [
-        { "type": "input",    "label": "First name",        "value": "Rhythm" },
-        { "type": "input",    "label": "Last name",         "value": "Health" },
-        { "type": "input",    "label": "Email",             "value": "rhythmtest@coefficient.health" },
-        { "type": "input",    "label": "NPI",               "value": "1234567890" },
-        { "type": "select",   "label": "Area of interest",  "value": "Acquired hypothalamic obesity" },
-        { "type": "checkbox", "label": "Consent",           "value": true }
+      "steps": [
+        {
+          "id": "with-overlays",
+          "enabled": true,
+          "label": "Cookie bar, interstitial & ISI tray",
+          "description": "Raw entry state — no interaction yet",
+          "phase": "pre-entry",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true
+        },
+        {
+          "id": "post-dismiss",
+          "enabled": true,
+          "label": "Overlays dismissed, ISI tray visible",
+          "description": "Cookie bar and HCP gate dismissed — ISI tray remains",
+          "phase": "post-entry",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true
+        },
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "description": "Complete scroll capture with ISI tray hidden",
+          "phase": "authenticated",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        }
       ]
-    }
-  ],
-
-  "externalCaptures": [
-    {
-      "name": "visit-patient-site",
-      "triggerText": "Visit Patient Site",
-      "viewport": { "width": 1442, "height": 900 }
     },
+
     {
-      "name": "fda-medwatch",
-      "triggerText": "FDA MedWatch",
-      "viewport": { "width": 1442, "height": 900 }
+      "id": "resources",
+      "label": "Resources",
+      "path": "/resources/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        },
+        {
+          "id": "filtered",
+          "enabled": true,
+          "label": "Filtered — no resources state",
+          "description": "Audience and journey filters applied to surface the no-results message",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "label": "Audience", "value": "For your patient",  "editable": true },
+            { "type": "select", "label": "Journey",  "value": "Disease education", "editable": true }
+          ],
+          "waitFor": "no-results"
+        }
+      ]
+    },
+
+    {
+      "id": "get-connected",
+      "label": "Get Connected",
+      "path": "/get-connected/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page (empty form)",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        },
+        {
+          "id": "filled-form",
+          "enabled": true,
+          "label": "Full page (form filled)",
+          "description": "Form filled with test data — consent checkbox checked",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true,
+          "actions": [
+            { "type": "input",    "label": "First name",       "value": "Rhythm",                          "editable": true },
+            { "type": "input",    "label": "Last name",        "value": "Health",                          "editable": true },
+            { "type": "input",    "label": "Email",            "value": "rhythmtest@coefficient.health",   "editable": true },
+            { "type": "input",    "label": "NPI",              "value": "1234567890",                      "editable": true },
+            { "type": "select",   "label": "Area of interest", "value": "Acquired hypothalamic obesity",   "editable": true },
+            { "type": "checkbox", "label": "Consent",          "value": true }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "interstitial-leave",
+      "label": "Interstitial (Leave)",
+      "type": "external",
+      "triggerPage": "/",
+      "steps": [
+        {
+          "id": "capture",
+          "enabled": true,
+          "label": "Triggered via utility nav",
+          "description": "Click 'Visit Patient Site' to open the leaving-site interstitial",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true,
+          "trigger": { "type": "click", "text": "Visit Patient Site" }
+        }
+      ]
+    },
+
+    {
+      "id": "interstitial-medwatch",
+      "label": "Interstitial (Before you go...)",
+      "type": "external",
+      "triggerPage": "/",
+      "steps": [
+        {
+          "id": "capture",
+          "enabled": true,
+          "label": "Triggered via footer link",
+          "description": "Click the FDA MedWatch link in the footer to open the interstitial",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true,
+          "trigger": { "type": "click", "text": "FDA MedWatch" }
+        }
+      ]
     }
   ]
 }

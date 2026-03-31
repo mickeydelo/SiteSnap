@@ -10,9 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR  = path.join(__dirname, 'sites');
 
 const app  = express();
-const jobs = new Map(); // jobId → { status, zipPath, error }
+const jobs = new Map(); // jobId → { status, entries[], total, log[], zipPath, error }
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // config overrides can be large-ish
 app.use(express.static(path.join(__dirname, 'ui')));
 
 // ---------------------------------------------------------------------------
@@ -41,11 +41,23 @@ app.get('/api/sites', (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// API: return a site's config (used by run.html to build the UI)
+// ---------------------------------------------------------------------------
+
+app.get('/api/config/:siteId', (req, res) => {
+  const configPath = path.join(SITES_DIR, req.params.siteId, 'config.json');
+  if (!fs.existsSync(configPath)) {
+    return res.status(404).json({ error: 'Site config not found.' });
+  }
+  res.json(JSON.parse(fs.readFileSync(configPath, 'utf8')));
+});
+
+// ---------------------------------------------------------------------------
 // API: start a screenshot run
 // ---------------------------------------------------------------------------
 
 app.post('/api/run', (req, res) => {
-  const { siteId, username, password } = req.body;
+  const { siteId, username, password, config: configOverride } = req.body;
 
   if (!siteId || !username || !password) {
     return res.status(400).json({ error: 'siteId, username, and password are required.' });
@@ -57,12 +69,22 @@ app.post('/api/run', (req, res) => {
   }
 
   const jobId = randomUUID();
-  jobs.set(jobId, { status: 'running', zipPath: null, error: null });
+  const job   = { status: 'running', entries: [], total: 0, log: [], zipPath: null, error: null };
+  jobs.set(jobId, job);
+
+  const onProgress = msg => {
+    if (msg && typeof msg === 'object') {
+      if (msg.type === 'total')   { job.total = msg.total; }
+      else if (msg.type === 'capture') { job.entries.push({ label: msg.label, filepath: msg.filepath }); }
+    } else {
+      job.log.push(msg);
+    }
+  };
 
   // Fire-and-forget — credentials are passed directly and never stored
-  run(siteDir, { username, password })
-    .then(zipPath => jobs.set(jobId, { status: 'done',  zipPath, error: null }))
-    .catch(err   => jobs.set(jobId, { status: 'error', zipPath: null, error: err.message }));
+  run(siteDir, { username, password }, configOverride ?? null, onProgress)
+    .then(zipPath => Object.assign(job, { status: 'done',  zipPath }))
+    .catch(err   => Object.assign(job, { status: 'error', error: err.message }));
 
   res.json({ jobId });
 });
@@ -74,7 +96,30 @@ app.post('/api/run', (req, res) => {
 app.get('/api/status/:jobId', (req, res) => {
   const job = jobs.get(req.params.jobId);
   if (!job) return res.status(404).json({ error: 'Job not found.' });
-  res.json(job);
+  res.json({
+    status:  job.status,
+    entries: job.entries.map((e, i) => ({ label: e.label, index: i })),
+    total:   job.total,
+    lastLog: job.log[job.log.length - 1] ?? null,
+    zipPath: job.zipPath,
+    error:   job.error,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// API: serve capture thumbnail (raw PNG, browser scales via CSS)
+// ---------------------------------------------------------------------------
+
+app.get('/api/thumbnail/:jobId/:index', (req, res) => {
+  const job = jobs.get(req.params.jobId);
+  if (!job) return res.status(404).end();
+  const idx   = Number(req.params.index);
+  const entry = job.entries[idx];
+  if (!entry) return res.status(404).end();
+  if (!fs.existsSync(entry.filepath)) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=600');
+  fs.createReadStream(entry.filepath).pipe(res);
 });
 
 // ---------------------------------------------------------------------------
@@ -87,6 +132,14 @@ app.get('/api/download/:jobId', (req, res) => {
     return res.status(404).json({ error: 'Not ready or job not found.' });
   }
   res.download(job.zipPath, path.basename(job.zipPath));
+});
+
+// ---------------------------------------------------------------------------
+// SPA route: serve run.html at /run
+// ---------------------------------------------------------------------------
+
+app.get('/run', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'ui', 'run.html'));
 });
 
 // ---------------------------------------------------------------------------
