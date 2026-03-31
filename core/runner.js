@@ -91,24 +91,52 @@ async function runDevice(config, credentials, outputDir, device, log) {
     // Dismisses cookie banners, HCP gate, and logs in so subsequent pages are clean.
     const entryPage = config.pages.find(p => p.includesEntry);
     if (entryPage) {
-      await navigate(page, `${config.baseUrl}${entryPage.path}`);
+      const entryUrl      = `${config.baseUrl}${entryPage.path}`;
       const captureEnabled = entryPage.enabled !== false;
-      const steps = enabledSteps(entryPage, device);
+      const steps          = enabledSteps(entryPage, device);
+
+      await navigate(page, entryUrl);
 
       if (captureEnabled) {
         for (const step of steps.filter(s => s.phase === 'pre-entry')) {
-          await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
+          try {
+            await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
+          } catch (err) {
+            await log(`  [skip] ${device}: ${entryPage.id}-${step.id} — ${err.message}`);
+          }
         }
       }
 
-      if (entryPage.entryActions?.length) {
-        await executeActions(page, entryPage.entryActions);
+      // Run entry actions. If they fail, navigate fresh and retry once —
+      // on Lambda the cookie-banner animation can still be running when the
+      // HCP gate click fires, causing it to miss. A fresh load gives a clean state.
+      let entryOk = false;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          if (attempt === 2) {
+            await log(`  [retry] Entry actions failed on attempt 1 — retrying on fresh page`);
+            await navigate(page, entryUrl);
+          }
+          if (entryPage.entryActions?.length) {
+            await executeActions(page, entryPage.entryActions);
+          }
+          await injectLogin(page, credentials);
+          entryOk = true;
+          break;
+        } catch (err) {
+          if (attempt === 2) {
+            await log(`  [skip] Entry actions failed after retry — ${err.message}. Continuing with remaining pages.`);
+          }
+        }
       }
-      await injectLogin(page, credentials);
 
-      if (captureEnabled) {
+      if (captureEnabled && entryOk) {
         for (const step of steps.filter(s => s.phase === 'post-entry')) {
-          await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
+          try {
+            await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
+          } catch (err) {
+            await log(`  [skip] ${device}: ${entryPage.id}-${step.id} — ${err.message}`);
+          }
         }
         if (device === 'mobile') {
           await captureHamburger(page, outputDir, seq, log);
@@ -131,7 +159,12 @@ async function runDevice(config, credentials, outputDir, device, log) {
           await captureExternal(page, config, pageCfg, step, outputDir, seq, device, log);
         }
       } else {
-        await navigate(page, `${config.baseUrl}${pageCfg.path}`);
+        try {
+          await navigate(page, `${config.baseUrl}${pageCfg.path}`);
+        } catch (err) {
+          await log(`  [skip] ${pageCfg.label} — navigation failed: ${err.message}`);
+          continue;
+        }
         for (const step of steps) {
           await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
         }
