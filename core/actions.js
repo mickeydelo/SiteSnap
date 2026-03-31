@@ -27,7 +27,7 @@ async function executeAction(page, action) {
     case 'click':         return clickByText(page, action.text);
     case 'input':         return fillInput(page, action.label, action.value);
     case 'select':        return selectOption(page, action.label, action.value);
-    case 'checkbox':      return handleCheckbox(page, action.label, action.value);
+    case 'checkbox':      return handleCheckbox(page, action.label, action.value, action.selector);
     default:
       console.warn(`[actions] Unknown action type: "${action.type}"`);
   }
@@ -296,8 +296,15 @@ async function pickDropdownOption(page, value) {
 // Checkbox
 // ---------------------------------------------------------------------------
 
-async function handleCheckbox(page, label, value) {
+async function handleCheckbox(page, label, value, selector = null) {
   const strategies = [
+    // 0. Explicit CSS selector — most reliable when the label text is unreliable
+    ...( selector ? [async () => {
+      const cb = page.locator(selector).first();
+      await cb.waitFor({ state: 'attached', timeout: 5000 });
+      if (value === true  && !(await cb.isChecked())) await cb.check({ force: true });
+      if (value === false &&  (await cb.isChecked())) await cb.uncheck({ force: true });
+    }] : []),
     // 1. Standard label association with a short timeout
     async () => {
       const cb = page.getByLabel(label, { exact: false }).first();

@@ -117,9 +117,23 @@
             { "type": "input",    "label": "Last name",        "value": "Health",                          "editable": true },
             { "type": "input",    "label": "Email",            "value": "rhythmtest@coefficient.health",   "editable": true },
             { "type": "input",    "label": "NPI",              "value": "1234567890",                      "editable": true },
-            { "type": "select",   "label": "Area of interest", "value": "Acquired hypothalamic obesity",   "editable": true },
-            { "type": "checkbox", "label": "Consent",          "value": true }
+            { "type": "checkbox", "label": "Area of interest", "selector": "#area_of_interest_0", "value": true },
+            { "type": "checkbox", "label": "Consent", "selector": "#receive_info", "value": true }
           ]
+        },
+        {
+          "id": "thank-you",
+          "enabled": true,
+          "label": "Thank You modal",
+          "description": "Submit the filled form and capture the Thank You confirmation modal",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "text": "Submit" }
+          ],
+          "waitFor": "network-idle"
         }
       ]
     },

@@ -77,53 +77,51 @@ async function runDevice(config, credentials, outputDir, device, log) {
   const seq = new Sequence();
 
   try {
+    // ── Entry sequence (always runs, even if the home page is disabled for capture)
+    // Dismisses cookie banners, HCP gate, and logs in so subsequent pages are clean.
+    const entryPage = config.pages.find(p => p.includesEntry);
+    if (entryPage) {
+      await navigate(page, `${config.baseUrl}${entryPage.path}`);
+      const captureEnabled = entryPage.enabled !== false;
+      const steps = enabledSteps(entryPage, device);
+
+      if (captureEnabled) {
+        for (const step of steps.filter(s => s.phase === 'pre-entry')) {
+          await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
+        }
+      }
+
+      if (entryPage.entryActions?.length) {
+        await executeActions(page, entryPage.entryActions);
+      }
+      await injectLogin(page, credentials);
+
+      if (captureEnabled) {
+        for (const step of steps.filter(s => s.phase === 'post-entry')) {
+          await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
+        }
+        if (device === 'mobile') {
+          await captureHamburger(page, outputDir, seq, log);
+        }
+        for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
+          await prepareAndCapture(page, step, outputDir, seq, entryPage.id, device, log);
+        }
+      }
+    }
+
+    // ── Remaining pages
     for (const pageCfg of config.pages) {
+      if (pageCfg.includesEntry) continue; // already handled above
       if (pageCfg.enabled === false) continue;
       const steps = enabledSteps(pageCfg, device);
       if (!steps.length) continue;
 
       if (pageCfg.type === 'external') {
-        // ── External / interstitial captures
         for (const step of steps) {
           await captureExternal(page, config, pageCfg, step, outputDir, seq, device, log);
         }
-
-      } else if (pageCfg.includesEntry) {
-        // ── Entry page (home) — interleaved auth sequence
-        await navigate(page, `${config.baseUrl}${pageCfg.path}`);
-
-        // Phase 1: pre-entry (raw state, all overlays visible)
-        for (const step of steps.filter(s => s.phase === 'pre-entry')) {
-          await captureStep(page, step, outputDir, seq, pageCfg.id, device, log);
-        }
-
-        // Run entry actions (dismiss cookie banner + HCP gate)
-        if (pageCfg.entryActions?.length) {
-          await executeActions(page, pageCfg.entryActions);
-        }
-
-        // Auto-login if a login form is now present
-        await injectLogin(page, credentials);
-
-        // Phase 2: post-entry (overlays gone, ISI tray still showing)
-        for (const step of steps.filter(s => s.phase === 'post-entry')) {
-          await captureStep(page, step, outputDir, seq, pageCfg.id, device, log);
-        }
-
-        // Mobile only: capture hamburger menu after login
-        if (device === 'mobile') {
-          await captureHamburger(page, outputDir, seq, log);
-        }
-
-        // Phase 3: authenticated (ISI tray can be hidden)
-        for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
-          await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
-        }
-
       } else {
-        // ── Regular authenticated page
         await navigate(page, `${config.baseUrl}${pageCfg.path}`);
-
         for (const step of steps) {
           await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
         }
