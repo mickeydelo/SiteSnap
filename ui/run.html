@@ -690,20 +690,29 @@
       document.getElementById('capture-btn').disabled = true;
       showOverlay('Running…', 'Starting up');
 
+      // Generate UUID client-side so we can start polling immediately even if
+      // the server returns 202 with no body (Netlify background function).
+      const jobId = crypto.randomUUID();
+
       try {
         const res = await fetch('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            jobId,
             siteId:   state.siteId,
             username: state.credentials.username,
             password: state.credentials.password,
             config:   state.config,
           }),
         });
-        const { jobId, error } = await res.json();
-        if (error) throw new Error(error);
-        startPoll(jobId);
+        // 200 = local Express, 202 = Netlify background function
+        if (res.ok || res.status === 202) {
+          startPoll(jobId);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
       } catch (err) {
         overlayError(err.message);
         document.getElementById('capture-btn').disabled = false;
@@ -717,6 +726,9 @@
         try {
           const res = await fetch(`/api/status/${state.jobId}`);
           const job = await res.json();
+
+          // Job not created yet (Netlify background function still starting up)
+          if (!job.status) return;
 
           // Status text (latest plain log line)
           if (job.lastLog) {

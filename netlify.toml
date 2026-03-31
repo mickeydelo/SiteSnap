@@ -1,0 +1,61 @@
+[build]
+  publish = "ui"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  # sites/** holds config.json / metadata.json — bundled with every function
+  included_files = ["sites/**"]
+  # @sparticuz/chromium ships a large pre-built binary; must not be inlined by esbuild
+  external_node_modules = ["@sparticuz/chromium"]
+
+# Extra memory + max timeout for the Playwright run
+[functions.api-run-background]
+  memory  = 3008
+  timeout = 900
+
+# ---------------------------------------------------------------------------
+# API routes → functions
+# ---------------------------------------------------------------------------
+
+[[redirects]]
+  from   = "/api/sites"
+  to     = "/.netlify/functions/api-sites"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/api/config/:siteId"
+  to     = "/.netlify/functions/api-config?siteId=:siteId"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/api/run"
+  to     = "/.netlify/functions/api-run-background"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/api/status/:jobId"
+  to     = "/.netlify/functions/api-status?jobId=:jobId"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/api/thumbnail/:jobId/:index"
+  to     = "/.netlify/functions/api-thumbnail?jobId=:jobId&index=:index"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from   = "/api/download/:jobId"
+  to     = "/.netlify/functions/api-download?jobId=:jobId"
+  status = 200
+  force  = true
+
+# /run serves the run page (mirrors Express GET /run)
+[[redirects]]
+  from   = "/run"
+  to     = "/run.html"
+  status = 200

@@ -139,19 +139,57 @@ run(siteDir, credentials, configOverride?)
 
 ---
 
+## Deployment
+
+SiteSnap runs in two modes — same codebase, same UI:
+
+### Local (Express)
+```
+node index.js          # starts Express on port 3000 (auto-walks on EADDRINUSE)
+SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
+```
+- Job state: in-memory Map
+- Screenshots/ZIPs: written to `sites/<id>/output/` on disk
+- `browser.js` uses the `playwright` package
+
+### Netlify
+- UI files in `ui/` are the static publish target (`publish = "ui"`)
+- API routes are Netlify Functions in `netlify/functions/`
+- `/api/run` → background function (`api-run-background.mjs`, 15-min timeout, 3GB RAM)
+- Job state + screenshots + ZIPs: stored in Netlify Blobs (3 stores: `sitesnap-jobs`, `sitesnap-screenshots`, `sitesnap-zips`)
+- `browser.js` detects `process.env.NETLIFY` and uses `@sparticuz/chromium` + `playwright-core`
+- Screenshots written to `/tmp` during the run, then uploaded to Blobs, then deleted
+- Client generates `jobId` with `crypto.randomUUID()` before POST; polling starts immediately (handles 202 with no body)
+- `sites/**` bundled with functions via `included_files` in `netlify.toml`
+
+### Deploy to Netlify
+1. Push repo to GitHub
+2. Connect repo in Netlify dashboard
+3. Build settings are auto-detected from `netlify.toml`
+4. No environment variables required — Blobs context is injected automatically
+
+---
+
 ## File map
 
 | File | Role |
 |---|---|
-| `index.js` | Express server — site API, config API, job management |
+| `index.js` | Express server — site API, config API, job management (local only) |
 | `core/runner.js` | Playwright orchestrator — desktop + mobile passes |
-| `core/browser.js` | Browser/context factory |
+| `core/browser.js` | Browser/context factory — switches between local Playwright and `@sparticuz/chromium` |
 | `core/actions.js` | Action executor (click, input, select, checkbox, login) |
 | `core/capture.js` | Screenshot + lazy-load scroll |
 | `core/utils.js` | waitForNetworkIdle, hideISITray, waitForCondition |
 | `core/zip.js` | ZIP packaging |
 | `ui/index.html` | Login/site-selection landing page |
 | `ui/run.html` | Per-page step configuration + capture trigger |
+| `netlify/functions/api-sites.mjs` | GET /api/sites |
+| `netlify/functions/api-config.mjs` | GET /api/config/:siteId |
+| `netlify/functions/api-run-background.mjs` | POST /api/run (background, 15 min) |
+| `netlify/functions/api-status.mjs` | GET /api/status/:jobId |
+| `netlify/functions/api-thumbnail.mjs` | GET /api/thumbnail/:jobId/:index |
+| `netlify/functions/api-download.mjs` | GET /api/download/:jobId |
+| `netlify.toml` | Build config + function settings + API redirects |
 | `sites/<id>/config.json` | Site automation config |
 | `sites/<id>/metadata.json` | Display name |
-| `sites/<id>/output/` | Run ZIPs stored here |
+| `sites/<id>/output/` | Run ZIPs stored here (local only) |

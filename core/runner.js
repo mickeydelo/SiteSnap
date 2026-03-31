@@ -33,16 +33,26 @@ class Sequence {
  * @param {(msg: string) => void} [onProgress]
  * @returns {string} Absolute path to the output ZIP
  */
-export async function run(siteDir, credentials, configOverride = null, onProgress = null) {
+/**
+ * @param {string}  siteDir        Absolute path to the site folder
+ * @param {{ username: string, password: string }} credentials
+ * @param {object|null} configOverride  Optional modified config from the UI
+ * @param {(msg: object|string) => Promise<void>} [onProgress]
+ * @param {string|null} outputBaseDir   Override for the output root (used on Netlify/Lambda
+ *                                      to write to /tmp instead of siteDir/output)
+ * @returns {string} Absolute path to the output ZIP
+ */
+export async function run(siteDir, credentials, configOverride = null, onProgress = null, outputBaseDir = null) {
   const config = configOverride
     ?? JSON.parse(fs.readFileSync(path.join(siteDir, 'config.json'), 'utf8'));
 
-  const log = msg => { if (typeof msg === 'string') console.log(msg); onProgress?.(msg); };
+  const log = async msg => { if (typeof msg === 'string') console.log(msg); await onProgress?.(msg); };
 
-  log({ type: 'total', total: countTotalCaptures(config) });
+  await log({ type: 'total', total: countTotalCaptures(config) });
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const runDir     = path.join(siteDir, 'output', `run-${timestamp}`);
+  const outBase    = outputBaseDir ?? path.join(siteDir, 'output');
+  const runDir     = path.join(outBase, `run-${timestamp}`);
   const desktopDir = path.join(runDir, 'desktop');
   const mobileDir  = path.join(runDir, 'mobile');
 
@@ -50,18 +60,18 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
   fs.mkdirSync(mobileDir,  { recursive: true });
 
   try {
-    log('[Desktop]');
+    await log('[Desktop]');
     await runDevice(config, credentials, desktopDir, 'desktop', log);
 
-    log('[Mobile]');
+    await log('[Mobile]');
     await runDevice(config, credentials, mobileDir, 'mobile', log);
   } catch (err) {
     fs.rmSync(runDir, { recursive: true, force: true });
     throw err;
   }
 
-  log('Packaging…');
-  const zipPath = path.join(siteDir, 'output', `run-${timestamp}.zip`);
+  await log('Packaging…');
+  const zipPath = path.join(outBase, `run-${timestamp}.zip`);
   await zipDirectory(runDir, zipPath);
   fs.rmSync(runDir, { recursive: true });
 
@@ -174,9 +184,9 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
       await page.waitForTimeout(300);
     }
 
-    log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
+    await log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
   } catch (err) {
-    log(`  [skip] ${pageCfg.label} — ${err.message}`);
+    await log(`  [skip] ${pageCfg.label} — ${err.message}`);
   }
 }
 
@@ -215,7 +225,7 @@ async function captureStep(page, step, outputDir, seq, pageId, device, log) {
     });
   }
 
-  log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
+  await log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
 }
 
 async function captureHamburger(page, outputDir, seq, log) {
@@ -245,7 +255,7 @@ async function captureHamburger(page, outputDir, seq, log) {
         const filename = seq.next('nav-open-mobile');
         const filepath = path.join(outputDir, filename);
         await page.screenshot({ path: filepath, fullPage: false });
-        log({ type: 'capture', label: `  mobile: ${filename}`, filepath });
+        await log({ type: 'capture', label: `  mobile: ${filename}`, filepath });
 
         await btn.click(); // close before next navigation
         await page.waitForTimeout(300);
@@ -255,7 +265,7 @@ async function captureHamburger(page, outputDir, seq, log) {
       // try next
     }
   }
-  log('  [skip] Hamburger menu not found');
+  await log('  [skip] Hamburger menu not found');
 }
 
 async function navigate(page, url) {

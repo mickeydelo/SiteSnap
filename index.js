@@ -57,7 +57,7 @@ app.get('/api/config/:siteId', (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.post('/api/run', (req, res) => {
-  const { siteId, username, password, config: configOverride } = req.body;
+  const { jobId: clientJobId, siteId, username, password, config: configOverride } = req.body;
 
   if (!siteId || !username || !password) {
     return res.status(400).json({ error: 'siteId, username, and password are required.' });
@@ -68,7 +68,7 @@ app.post('/api/run', (req, res) => {
     return res.status(404).json({ error: 'Site not found.' });
   }
 
-  const jobId = randomUUID();
+  const jobId = clientJobId || randomUUID();
   const job   = { status: 'running', entries: [], total: 0, log: [], zipPath: null, error: null };
   jobs.set(jobId, job);
 
