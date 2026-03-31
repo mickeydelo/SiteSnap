@@ -14,7 +14,7 @@ export async function executeActions(page, actions) {
   for (const action of actions) {
     await executeAction(page, action);
     if (NETWORK_ACTIONS.has(action.type)) {
-      await waitForNetworkIdle(page, 2000);
+      await waitForNetworkIdle(page, 1200);
     } else {
       await page.waitForTimeout(100); // input / checkbox — no network, just a repaint tick
     }
@@ -72,7 +72,7 @@ async function acceptCookies(page) {
 // Click by visible text
 // ---------------------------------------------------------------------------
 
-async function clickByText(page, text) {
+export async function clickByText(page, text) {
   // Wait up to 15 s for the element to be attached to the DOM before trying
   // any click strategy. 'attached' fires earlier than 'visible' and lets us
   // confirm the node exists even if it's still animating in.
@@ -84,6 +84,20 @@ async function clickByText(page, text) {
   }
 
   const strategies = [
+    // 0a. data-content attribute — used by utility nav links on this site
+    async () => page.locator(`[data-content="${text}"]`).first().click({ timeout: 5000 }),
+    // 0b. href-based anchor fallback for external links whose text is split across spans
+    async () => {
+      const hit = await page.evaluate(searchText => {
+        const norm = t => t.toLowerCase().replace(/[\s\u00a0]+/g, ' ').trim();
+        const needle = norm(searchText);
+        const anchors = [...document.querySelectorAll('a')];
+        const match = anchors.find(a => norm(a.textContent).includes(needle));
+        if (match) { match.click(); return true; }
+        return false;
+      }, text);
+      if (!hit) throw new Error('anchor DOM walk: no match');
+    },
     // 0. Wait for .modal__content to be visible, then click .button--primary
     //    inside it. Does NOT rely on text matching — works even if the label has
     //    invisible characters or non-breaking spaces.

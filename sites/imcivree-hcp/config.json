@@ -35,6 +35,20 @@
           "includeMobile": true
         },
         {
+          "id": "isi-expanded",
+          "enabled": true,
+          "label": "ISI Expanded",
+          "description": "Click Important Safety Information in utility nav to open the ISI drawer",
+          "phase": "authenticated",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "text": "Important Safety Information" }
+          ]
+        },
+        {
           "id": "full-page",
           "enabled": true,
           "label": "Full page",
@@ -111,6 +125,53 @@
     },
 
     {
+      "id": "sign-up",
+      "label": "Sign Up for Updates",
+      "path": "/sign-up/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page (empty form)",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        },
+        {
+          "id": "filled-form",
+          "enabled": true,
+          "label": "Full page (form filled)",
+          "description": "Form filled with test data — consent checkbox checked",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true,
+          "actions": [
+            { "type": "input",    "label": "First name",  "value": "Rhythm",                        "editable": true },
+            { "type": "input",    "label": "Last name",   "value": "Health",                        "editable": true },
+            { "type": "input",    "label": "Email",       "value": "rhythmtest@coefficient.health", "editable": true },
+            { "type": "checkbox", "label": "Consent",     "value": true }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "404",
+      "label": "404 Page",
+      "path": "/nothere",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        }
+      ]
+    },
+
+    {
       "id": "interstitial-leave",
       "label": "Interstitial (Leave)",
       "type": "external",
@@ -128,26 +189,7 @@
           "trigger": { "type": "click", "text": "Visit Patient Site" }
         }
       ]
-    },
-
-    {
-      "id": "interstitial-medwatch",
-      "label": "Interstitial (Before you go...)",
-      "type": "external",
-      "triggerPage": "/",
-      "steps": [
-        {
-          "id": "capture",
-          "enabled": true,
-          "label": "Triggered via footer link",
-          "description": "Click the FDA MedWatch link in the footer to open the interstitial",
-          "captureMode": "viewport",
-          "desktop": { "width": 1442, "height": 900 },
-          "mobile":  { "width": 390,  "height": 800 },
-          "includeMobile": true,
-          "trigger": { "type": "click", "text": "FDA MedWatch" }
-        }
-      ]
     }
+
   ]
 }

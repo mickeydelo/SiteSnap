@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { launchContext, DESKTOP_VIEWPORT, MOBILE_VIEWPORT } from './browser.js';
-import { executeActions, injectLogin } from './actions.js';
+import { executeActions, injectLogin, clickByText } from './actions.js';
 import { captureScreenshot } from './capture.js';
 import { waitForNetworkIdle, hideISITray, waitForCondition } from './utils.js';
 import { zipDirectory } from './zip.js';
@@ -78,6 +78,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
 
   try {
     for (const pageCfg of config.pages) {
+      if (pageCfg.enabled === false) continue;
       const steps = enabledSteps(pageCfg, device);
       if (!steps.length) continue;
 
@@ -152,7 +153,7 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
     const triggerText = step.trigger?.text;
     if (!triggerText) throw new Error('step.trigger.text is required for external captures');
 
-    await page.getByText(triggerText, { exact: false }).first().click({ timeout: 8000 });
+    await clickByText(page, triggerText);
 
     const popup = await popupPromise;
 
@@ -208,8 +209,12 @@ async function captureStep(page, step, outputDir, seq, pageId, device, log) {
     await page.screenshot({ path: filepath, fullPage: false });
     if (stepViewport) await page.setViewportSize(DEFAULTS[device]); // restore
   } else {
-    // fullPage — scrolls to trigger lazy load, then captures
-    await captureScreenshot(page, filepath, { fullPage: true });
+    // fullPage — scrolls to trigger lazy load, then captures.
+    // Re-hide ISI drawer after scroll in case the sticky element re-attached.
+    await captureScreenshot(page, filepath, {
+      fullPage: true,
+      afterScroll: step.hideISI ? () => hideISITray(page) : null,
+    });
   }
 
   log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
@@ -263,6 +268,7 @@ async function navigate(page, url) {
 function countTotalCaptures(config) {
   let total = 0;
   for (const page of config.pages) {
+    if (page.enabled === false) continue;
     total += enabledSteps(page, 'desktop').length;
     const mobileSteps = enabledSteps(page, 'mobile');
     total += mobileSteps.length;

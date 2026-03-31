@@ -1,6 +1,9 @@
-export async function captureScreenshot(page, filepath, { fullPage = true } = {}) {
+export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
   if (fullPage) {
     await scrollForLazyLoad(page);
+    // Re-apply any suppression (e.g. ISI drawer) after scroll — sticky elements
+    // can re-attach to the DOM during the lazy-load scroll pass.
+    if (afterScroll) await afterScroll();
   }
   await page.screenshot({ path: filepath, fullPage });
 }
@@ -16,12 +19,12 @@ export async function scrollForLazyLoad(page) {
 
     for (let i = 1; i <= jumps; i++) {
       window.scrollTo(0, Math.round((totalHeight / jumps) * i));
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 60));
     }
 
     window.scrollTo(0, 0);
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 100));
   });
 
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(100);
 }

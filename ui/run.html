@@ -94,23 +94,42 @@
       padding: 0 16px 10px;
     }
 
-    .nav-item {
-      display: block; width: 100%;
-      padding: 9px 16px 9px 19px;
-      text-align: left; background: none; border: none;
+    .nav-row {
+      display: flex; align-items: center;
       border-left: 3px solid transparent;
+      transition: background .12s;
+    }
+    .nav-row:hover { background: rgba(0,0,0,.03); }
+    .nav-row.active {
+      border-left-color: var(--primary);
+      background: rgba(99,102,241,.06);
+    }
+    .nav-row.is-disabled { opacity: .45; }
+
+    .nav-item {
+      flex: 1; min-width: 0;
+      padding: 9px 6px 9px 13px;
+      text-align: left; background: none; border: none;
       font-size: 13px; font-weight: 500; color: var(--muted);
       cursor: pointer; white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis;
-      transition: color .12s, background .12s;
+      transition: color .12s;
     }
-    .nav-item:hover { color: var(--text); background: rgba(0,0,0,.03); }
-    .nav-item.active {
+    .nav-row:hover .nav-item { color: var(--text); }
+    .nav-row.active .nav-item {
       color: var(--primary);
-      border-left-color: var(--primary);
-      background: rgba(99,102,241,.06);
       font-weight: 600;
     }
+
+    .nav-toggle {
+      flex-shrink: 0; padding: 0 10px 0 4px;
+      background: none; border: none; cursor: pointer;
+      display: flex; align-items: center;
+    }
+    /* reuse toggle-switch styles at smaller size */
+    .nav-toggle .toggle-switch { width: 28px; height: 16px; }
+    .nav-toggle .toggle-track::after { width: 10px; height: 10px; left: 3px; top: 3px; }
+    .nav-toggle .toggle-switch input:checked ~ .toggle-track::after { transform: translateX(12px); }
 
     /* ── Step list ── */
     .step-list {
@@ -476,16 +495,35 @@
       nav.innerHTML = '<div class="sidebar-label">Pages</div>';
 
       state.config.pages.forEach((page, i) => {
-        const btn = document.createElement('button');
-        btn.className = 'nav-item' + (i === 0 ? ' active' : '');
-        btn.textContent = page.label;
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+        const enabled = page.enabled !== false;
+
+        const toggleInput = el('input', { type: 'checkbox', ...(enabled ? { checked: '' } : {}) });
+        const toggleLabel = el('label', { class: 'toggle-switch' },
+          toggleInput,
+          el('span', { class: 'toggle-track' })
+        );
+        const toggleBtn = el('button', { class: 'nav-toggle', title: 'Enable / disable page' }, toggleLabel);
+
+        const navBtn = el('button', { class: 'nav-item' }, page.label);
+
+        const row = el('div', { class: 'nav-row' + (i === 0 ? ' active' : '') + (enabled ? '' : ' is-disabled') });
+        row.appendChild(navBtn);
+        row.appendChild(toggleBtn);
+
+        navBtn.addEventListener('click', () => {
+          document.querySelectorAll('.nav-row').forEach(r => r.classList.remove('active'));
+          row.classList.add('active');
           state.activePage = i;
           renderPage(i);
         });
-        nav.appendChild(btn);
+
+        toggleInput.addEventListener('change', () => {
+          const on = toggleInput.checked;
+          patchPage(i, { enabled: on });
+          row.classList.toggle('is-disabled', !on);
+        });
+
+        nav.appendChild(row);
       });
     }
 
@@ -633,6 +671,10 @@
     }
 
     // ── State mutations ───────────────────────────────────────────────────────
+    function patchPage(pageIndex, patch) {
+      Object.assign(state.config.pages[pageIndex], patch);
+    }
+
     function patchStep(pageIndex, stepIndex, patch) {
       Object.assign(state.config.pages[pageIndex].steps[stepIndex], patch);
     }

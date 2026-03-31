@@ -4,7 +4,7 @@
  * @param {import('playwright').Page} page
  * @param {number} timeout ms
  */
-export async function waitForNetworkIdle(page, timeout = 3000) {
+export async function waitForNetworkIdle(page, timeout = 1500) {
   try {
     await page.waitForLoadState('networkidle', { timeout });
   } catch {
@@ -25,7 +25,10 @@ export async function hideISITray(page) {
       [class*="isi-tray"],
       [id*="isi-tray"],
       [class*="isi_tray"],
-      [id*="isi_tray"] {
+      [id*="isi_tray"],
+      .isi-drawer,
+      [class*="isi-drawer"],
+      [id*="isi-drawer"] {
         display:         none         !important;
         visibility:      hidden       !important;
         opacity:         0            !important;
