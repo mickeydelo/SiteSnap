@@ -32,10 +32,10 @@
   status = 200
   force  = true
 
-# Regular function: writes initial job state, then triggers background worker
+# Background function — Netlify auto-returns 202 immediately, function runs up to 15 min
 [[redirects]]
   from   = "/api/run"
-  to     = "/.netlify/functions/api-run"
+  to     = "/.netlify/functions/api-run-background"
   status = 200
   force  = true
 

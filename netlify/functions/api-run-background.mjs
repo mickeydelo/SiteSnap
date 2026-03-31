@@ -3,8 +3,6 @@ import fs from 'fs';
 import { getStore } from '@netlify/blobs';
 import { run } from '../../core/runner.js';
 
-// LAMBDA_TASK_ROOT is where Netlify deploys included_files (sites/**).
-// Locally this function is never called directly (Express handles /api/run).
 const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   ? path.join(process.env.LAMBDA_TASK_ROOT, 'sites')
   : path.join(process.cwd(), 'sites');
@@ -24,7 +22,10 @@ export const handler = async (event) => {
   const screenshotsStore = getStore('sitesnap-screenshots');
   const zipsStore        = getStore('sitesnap-zips');
 
-  // Helper: update job state in Blobs (best-effort, never throws)
+  // Write initial state immediately — poll may already be running
+  const jobState = { status: 'running', total: 0, entries: [], lastLog: 'Starting…', error: null };
+  await jobsStore.setJSON(jobId, { ...jobState }).catch(e => console.error('[bg] initial setJob failed:', e));
+
   const setJob = (patch) =>
     jobsStore.setJSON(jobId, patch).catch(e => console.error('[bg] setJob failed:', e));
 
@@ -34,11 +35,6 @@ export const handler = async (event) => {
       await setJob({ status: 'error', error: `Site not found: ${siteId}`, entries: [], total: 0, lastLog: null });
       return;
     }
-
-    // Shared mutable state updated by onProgress and flushed to Blobs
-    const jobState = {
-      status: 'running', total: 0, entries: [], lastLog: 'Starting…', error: null,
-    };
 
     const onProgress = async (msg) => {
       if (!msg) return;
@@ -71,7 +67,6 @@ export const handler = async (event) => {
       '/tmp',
     );
 
-    // Upload ZIP to Blobs then clean up /tmp
     const zipBuffer = fs.readFileSync(zipPath);
     await zipsStore.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
     fs.unlinkSync(zipPath);
@@ -81,12 +76,6 @@ export const handler = async (event) => {
 
   } catch (err) {
     console.error('[bg] Run failed:', err);
-    await setJob({
-      status:  'error',
-      error:   err.message,
-      entries: [],
-      total:   0,
-      lastLog: null,
-    });
+    await setJob({ status: 'error', error: err.message, entries: [], total: 0, lastLog: null });
   }
 };

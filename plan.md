@@ -163,9 +163,9 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 - `sites/**` bundled with functions via `included_files` in `netlify.toml`
 
 ### Netlify function architecture
-- `/api/run` → `api-run.mjs` (regular function): validates params, writes initial job state to Blobs **immediately** so polling can start, then fire-and-forgets a POST to `api-run-background` and returns 200.
-- `api-run-background.mjs` (background function): does the Playwright work, updates Blobs as it goes.
-- This split ensures the job always exists in Blobs before the client starts polling, even if the background worker cold-starts slowly.
+- `/api/run` → `api-run-background.mjs` directly. Netlify background functions (filenames ending in `-background`) automatically return 202 to the client immediately, then keep running up to 15 min.
+- The background function writes initial job state to Blobs as its very first action, before any Playwright work, so the status poll finds the job quickly.
+- The client generates the `jobId` with `crypto.randomUUID()` before the POST and starts polling straight away. The status poll tolerates 404 (job not yet written) by retrying silently.
 
 ### Browser / Playwright on Netlify
 - `core/browser.js` uses `playwright-core` as a **static import** (works everywhere).
@@ -195,12 +195,12 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 | `core/zip.js` | ZIP packaging |
 | `ui/index.html` | Login/site-selection landing page |
 | `ui/run.html` | Per-page step configuration + capture trigger |
-| `netlify/functions/api-sites.mjs` | GET /api/sites |
-| `netlify/functions/api-config.mjs` | GET /api/config/:siteId |
-| `netlify/functions/api-run-background.mjs` | POST /api/run (background, 15 min) |
-| `netlify/functions/api-status.mjs` | GET /api/status/:jobId |
-| `netlify/functions/api-thumbnail.mjs` | GET /api/thumbnail/:jobId/:index |
-| `netlify/functions/api-download.mjs` | GET /api/download/:jobId |
+| `netlify/functions/api-sites.mjs` | `GET /api/sites` |
+| `netlify/functions/api-config.mjs` | `GET /api/config/:siteId` |
+| `netlify/functions/api-run-background.mjs` | `POST /api/run` — background function, 202 immediate, 15-min run |
+| `netlify/functions/api-status.mjs` | `GET /api/status/:jobId` |
+| `netlify/functions/api-thumbnail.mjs` | `GET /api/thumbnail/:jobId/:index` |
+| `netlify/functions/api-download.mjs` | `GET /api/download/:jobId` |
 | `netlify.toml` | Build config + function settings + API redirects |
 | `sites/<id>/config.json` | Site automation config |
 | `sites/<id>/metadata.json` | Display name |
