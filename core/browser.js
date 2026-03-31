@@ -29,8 +29,8 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
   let headless       = true;
   let slowMo         = 0;
 
-  if (process.env.NETLIFY) {
-    // Lambda: use @sparticuz/chromium for the executable and recommended args
+  if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    // Lambda / Netlify Functions runtime: use @sparticuz/chromium
     const sparticuz  = (await import('@sparticuz/chromium')).default;
     executablePath   = await sparticuz.executablePath();
     args             = sparticuz.args;
