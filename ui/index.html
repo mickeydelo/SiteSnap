@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SiteSnap</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f5f7;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.10);
+      width: 100%;
+      max-width: 420px;
+      padding: 40px 36px 36px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    .logo svg { flex-shrink: 0; }
+
+    .logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+      letter-spacing: -.3px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    select, input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #111;
+      background: #fff;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    select:focus, input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    }
+
+    .field { margin-bottom: 18px; }
+
+    .btn {
+      width: 100%;
+      padding: 11px;
+      background: #6366f1;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background .15s, opacity .15s;
+    }
+
+    .btn:hover:not(:disabled) { background: #4f46e5; }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    /* ── Status area ── */
+    #status-area {
+      margin-top: 24px;
+      display: none;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #e5e7eb;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-text { flex: 1; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-running { background: #ede9fe; color: #6d28d9; }
+    .badge-done    { background: #d1fae5; color: #065f46; }
+    .badge-error   { background: #fee2e2; color: #991b1b; }
+
+    .btn-download {
+      width: 100%;
+      padding: 11px;
+      background: #10b981;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 14px;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+      transition: background .15s;
+    }
+
+    .btn-download:hover { background: #059669; }
+
+    .error-msg {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      padding: 8px 12px;
+    }
+
+    .divider {
+      height: 1px;
+      background: #f3f4f6;
+      margin: 28px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="28" height="28" rx="7" fill="#6366f1"/>
+        <rect x="6" y="7" width="16" height="12" rx="2" fill="white" opacity=".9"/>
+        <circle cx="14" cy="13" r="3" fill="#6366f1"/>
+        <rect x="10" y="21" width="8" height="2" rx="1" fill="white" opacity=".6"/>
+      </svg>
+      <span class="logo-text">SiteSnap</span>
+    </div>
+
+    <form id="run-form">
+      <div class="field">
+        <label for="site">Site</label>
+        <select id="site" name="siteId" required>
+          <option value="" disabled selected>Loading sites…</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" name="username" autocomplete="username" required placeholder="you@example.com" />
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" autocomplete="current-password" required placeholder="••••••••" />
+      </div>
+
+      <button class="btn" type="submit" id="submit-btn">Run Screenshots</button>
+    </form>
+
+    <div id="status-area">
+      <div class="divider"></div>
+
+      <div class="status-row">
+        <div class="spinner" id="spinner"></div>
+        <span class="status-text" id="status-text">Starting…</span>
+        <span class="badge badge-running" id="status-badge">Running</span>
+      </div>
+
+      <a class="btn-download" id="download-btn" style="display:none" href="#">
+        Download ZIP
+      </a>
+
+      <div class="error-msg" id="error-msg" style="display:none"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── Populate site selector
+    fetch('/api/sites')
+      .then(r => r.json())
+      .then(sites => {
+        const sel = document.getElementById('site');
+        sel.innerHTML = '';
+        if (!sites.length) {
+          sel.innerHTML = '<option value="" disabled selected>No sites configured</option>';
+          return;
+        }
+        sites.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.name;
+          sel.appendChild(opt);
+        });
+        sel.selectedIndex = 0;
+      })
+      .catch(() => {
+        document.getElementById('site').innerHTML =
+          '<option value="" disabled selected>Could not load sites</option>';
+      });
+
+    // ── Form submit
+    document.getElementById('run-form').addEventListener('submit', async e => {
+      e.preventDefault();
+
+      const siteId   = document.getElementById('site').value;
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!siteId || !username || !password) return;
+
+      // Disable form
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+
+      // Show status
+      const area = document.getElementById('status-area');
+      area.style.display = 'block';
+      setStatus('running', 'Running screenshots…');
+      document.getElementById('download-btn').style.display = 'none';
+      document.getElementById('error-msg').style.display    = 'none';
+
+      try {
+        const res  = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ siteId, username, password }),
+        });
+        const { jobId, error } = await res.json();
+        if (error) throw new Error(error);
+        poll(jobId);
+      } catch (err) {
+        setStatus('error', 'Failed to start run.');
+        showError(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Run Screenshots';
+      }
+    });
+
+    // ── Poll for job completion
+    function poll(jobId) {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/status/${jobId}`);
+          const job = await res.json();
+
+          if (job.status === 'done') {
+            clearInterval(interval);
+            setStatus('done', 'Screenshots complete.');
+            const dl = document.getElementById('download-btn');
+            dl.href = `/api/download/${jobId}`;
+            dl.style.display = 'block';
+            resetForm();
+          } else if (job.status === 'error') {
+            clearInterval(interval);
+            setStatus('error', 'Run failed.');
+            showError(job.error || 'An unexpected error occurred.');
+            resetForm();
+          }
+        } catch {
+          // transient network error — keep polling
+        }
+      }, 2000);
+    }
+
+    function setStatus(state, text) {
+      const spinner = document.getElementById('spinner');
+      const label   = document.getElementById('status-text');
+      const badge   = document.getElementById('status-badge');
+
+      label.textContent = text;
+      badge.className   = `badge badge-${state}`;
+      badge.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+      spinner.style.display = state === 'running' ? 'block' : 'none';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent  = msg;
+      el.style.display = 'block';
+    }
+
+    function resetForm() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled    = false;
+      btn.textContent = 'Run Screenshots';
+    }
+  </script>
+</body>
+</html>

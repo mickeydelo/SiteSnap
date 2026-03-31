@@ -1,0 +1,53 @@
+{
+  "baseUrl": "https://dev.imcivreehcp.com",
+
+  "entry": {
+    "actions": [
+      { "type": "acceptCookies" },
+      { "type": "click", "text": "I am a US healthcare professional" }
+    ]
+  },
+
+  "pages": [
+    {
+      "name": "home",
+      "path": "/",
+      "fullPage": true
+    },
+    {
+      "name": "resources",
+      "path": "/resources/",
+      "actions": [
+        { "type": "select", "label": "Audience", "value": "For your patient" },
+        { "type": "select", "label": "Journey",  "value": "Disease education" }
+      ],
+      "waitFor": "no-results",
+      "fullPage": true
+    },
+    {
+      "name": "get-connected",
+      "path": "/get-connected/",
+      "actions": [
+        { "type": "input",    "label": "First name",        "value": "Rhythm" },
+        { "type": "input",    "label": "Last name",         "value": "Health" },
+        { "type": "input",    "label": "Email",             "value": "rhythmtest@coefficient.health" },
+        { "type": "input",    "label": "NPI",               "value": "1234567890" },
+        { "type": "select",   "label": "Area of interest",  "value": "Acquired hypothalamic obesity" },
+        { "type": "checkbox", "label": "Consent",           "value": true }
+      ]
+    }
+  ],
+
+  "externalCaptures": [
+    {
+      "name": "visit-patient-site",
+      "triggerText": "Visit Patient Site",
+      "viewport": { "width": 1442, "height": 900 }
+    },
+    {
+      "name": "fda-medwatch",
+      "triggerText": "FDA MedWatch",
+      "viewport": { "width": 1442, "height": 900 }
+    }
+  ]
+}
