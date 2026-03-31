@@ -1,7 +1,10 @@
 import { getStore } from '@netlify/blobs';
 
 export const handler = async (event) => {
-  const jobId = event.queryStringParameters?.jobId;
+  // Path: /api/download/<jobId>
+  const jobId = event.queryStringParameters?.jobId
+    || event.path?.split('/').filter(Boolean).pop();
+
   if (!jobId) return { statusCode: 400, body: 'Bad request' };
 
   const jobsStore = getStore('sitesnap-jobs');

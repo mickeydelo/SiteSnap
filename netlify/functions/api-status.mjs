@@ -1,7 +1,10 @@
 import { getStore } from '@netlify/blobs';
 
 export const handler = async (event) => {
-  const jobId = event.queryStringParameters?.jobId;
+  // Path: /api/status/<jobId>
+  const jobId = event.queryStringParameters?.jobId
+    || event.path?.split('/').filter(Boolean).pop();
+
   if (!jobId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'jobId required' }) };
   }

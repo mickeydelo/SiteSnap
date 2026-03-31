@@ -6,7 +6,10 @@ const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   : new URL('../../sites', import.meta.url).pathname;
 
 export const handler = async (event) => {
-  const siteId = event.queryStringParameters?.siteId;
+  // Path: /api/config/<siteId>  →  last segment is the siteId
+  const siteId = event.queryStringParameters?.siteId
+    || event.path?.split('/').filter(Boolean).pop();
+
   if (!siteId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'siteId required' }) };
   }

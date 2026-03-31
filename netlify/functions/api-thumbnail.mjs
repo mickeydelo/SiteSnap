@@ -1,7 +1,13 @@
 import { getStore } from '@netlify/blobs';
 
 export const handler = async (event) => {
-  const { jobId, index } = event.queryStringParameters ?? {};
+  // Path: /api/thumbnail/<jobId>/<index>
+  const qs       = event.queryStringParameters ?? {};
+  const segments = event.path?.split('/').filter(Boolean) ?? [];
+
+  const jobId = qs.jobId || segments[segments.length - 2];
+  const index = qs.index ?? segments[segments.length - 1];
+
   if (!jobId || index == null) return { statusCode: 400, body: 'Bad request' };
 
   const store  = getStore('sitesnap-screenshots');
