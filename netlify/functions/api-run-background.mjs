@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { getStore } from '@netlify/blobs';
+import { jobsStore, screenshotsStore, zipsStore } from './_blobs.mjs';
 import { run } from '../../core/runner.js';
 
 const SITES_DIR = process.env.LAMBDA_TASK_ROOT
@@ -18,16 +18,15 @@ export const handler = async (event) => {
   const { jobId, siteId, username, password, config: configOverride } = body;
   if (!jobId || !siteId || !username || !password) return;
 
-  const jobsStore        = getStore('sitesnap-jobs');
-  const screenshotsStore = getStore('sitesnap-screenshots');
-  const zipsStore        = getStore('sitesnap-zips');
+  const jobs        = jobsStore();
+  const screenshots = screenshotsStore();
+  const zips        = zipsStore();
 
-  // Write initial state immediately — poll may already be running
   const jobState = { status: 'running', total: 0, entries: [], lastLog: 'Starting…', error: null };
-  await jobsStore.setJSON(jobId, { ...jobState }).catch(e => console.error('[bg] initial setJob failed:', e));
+  await jobs.setJSON(jobId, { ...jobState }).catch(e => console.error('[bg] initial setJob failed:', e));
 
   const setJob = (patch) =>
-    jobsStore.setJSON(jobId, patch).catch(e => console.error('[bg] setJob failed:', e));
+    jobs.setJSON(jobId, patch).catch(e => console.error('[bg] setJob failed:', e));
 
   try {
     const siteDir = path.join(SITES_DIR, siteId);
@@ -45,7 +44,7 @@ export const handler = async (event) => {
           } else if (msg.type === 'capture') {
             const idx    = jobState.entries.length;
             const buffer = fs.readFileSync(msg.filepath);
-            await screenshotsStore.set(`${jobId}/${idx}`, buffer, {
+            await screenshots.set(`${jobId}/${idx}`, buffer, {
               metadata: { contentType: 'image/png' },
             });
             jobState.entries.push({ label: msg.label, index: idx });
@@ -53,7 +52,7 @@ export const handler = async (event) => {
         } else if (typeof msg === 'string') {
           jobState.lastLog = msg.trim();
         }
-        await jobsStore.setJSON(jobId, { ...jobState });
+        await jobs.setJSON(jobId, { ...jobState });
       } catch (e) {
         console.error('[bg] onProgress error:', e);
       }
@@ -68,11 +67,11 @@ export const handler = async (event) => {
     );
 
     const zipBuffer = fs.readFileSync(zipPath);
-    await zipsStore.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
+    await zips.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
     fs.unlinkSync(zipPath);
 
     jobState.status = 'done';
-    await jobsStore.setJSON(jobId, { ...jobState });
+    await jobs.setJSON(jobId, { ...jobState });
 
   } catch (err) {
     console.error('[bg] Run failed:', err);

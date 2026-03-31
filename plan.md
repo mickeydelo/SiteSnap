@@ -176,9 +176,11 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 
 ### Deploy to Netlify
 1. Push repo to GitHub
-2. Connect repo in Netlify dashboard
-3. Build settings are auto-detected from `netlify.toml`
-4. No environment variables required — Blobs context and `process.env.URL` are injected automatically by Netlify
+2. Connect repo in Netlify dashboard — build settings are auto-detected from `netlify.toml`
+3. **One-time env var setup** (Netlify does not inject Blobs credentials into background functions automatically):
+   - Go to **User settings → Applications → Personal access tokens** → create a token
+   - Go to **Site settings → Environment variables** → add `NETLIFY_AUTH_TOKEN` = that token
+   - Trigger a redeploy after adding the env var
 
 ---
 

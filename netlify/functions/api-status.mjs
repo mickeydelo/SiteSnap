@@ -1,7 +1,6 @@
-import { getStore } from '@netlify/blobs';
+import { jobsStore } from './_blobs.mjs';
 
 export const handler = async (event) => {
-  // Path: /api/status/<jobId>
   const jobId = event.queryStringParameters?.jobId
     || event.path?.split('/').filter(Boolean).pop();
 
@@ -9,8 +8,7 @@ export const handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'jobId required' }) };
   }
 
-  const store = getStore('sitesnap-jobs');
-  const job   = await store.get(jobId, { type: 'json' });
+  const job = await jobsStore().get(jobId, { type: 'json' });
 
   if (!job) {
     return { statusCode: 404, body: JSON.stringify({ error: 'Job not found.' }) };

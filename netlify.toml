@@ -5,7 +5,7 @@
 [functions]
   node_bundler = "esbuild"
   # sites/** holds config.json / metadata.json — bundled with every function
-  included_files = ["sites/**"]
+  included_files = ["sites/**", "netlify/functions/_blobs.mjs"]
   # Keep these as-is (not inlined by esbuild); Netlify deploys them alongside the bundle.
   # playwright-core: used by browser.js at runtime
   # @sparticuz/chromium: large pre-built binary, must not be inlined
