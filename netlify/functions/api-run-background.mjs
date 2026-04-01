@@ -58,7 +58,7 @@ export const handler = async (event) => {
       }
     };
 
-    const zipPath = await run(
+    const { zipPath, captureDir } = await run(
       siteDir,
       { username, password },
       configOverride ?? null,
@@ -71,6 +71,11 @@ export const handler = async (event) => {
     await zips.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
     console.log('[bg] ZIP uploaded to Blobs');
     fs.unlinkSync(zipPath);
+    try {
+      fs.rmSync(captureDir, { recursive: true, force: true });
+    } catch (e) {
+      console.error('[bg] cleanup captureDir:', e);
+    }
 
     jobState.status = 'done';
     await jobs.setJSON(jobId, { ...jobState });

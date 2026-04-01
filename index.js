@@ -69,7 +69,15 @@ app.post('/api/run', (req, res) => {
   }
 
   const jobId = clientJobId || randomUUID();
-  const job   = { status: 'running', entries: [], total: 0, log: [], zipPath: null, error: null };
+  const job   = {
+    status: 'running',
+    entries: [],
+    total: 0,
+    log: [],
+    zipPath: null,
+    captureDir: null,
+    error: null,
+  };
   jobs.set(jobId, job);
 
   const onProgress = msg => {
@@ -83,8 +91,19 @@ app.post('/api/run', (req, res) => {
 
   // Fire-and-forget — credentials are passed directly and never stored
   run(siteDir, { username, password }, configOverride ?? null, onProgress)
-    .then(zipPath => Object.assign(job, { status: 'done',  zipPath }))
-    .catch(err   => Object.assign(job, { status: 'error', error: err.message }));
+    .then(({ zipPath, captureDir }) => {
+      Object.assign(job, { status: 'done', zipPath, captureDir });
+      // If thumbnails are never fetched and ZIP never downloaded, remove raw captures eventually.
+      setTimeout(() => {
+        const j = jobs.get(jobId);
+        if (!j || j.captureDir !== captureDir) return;
+        try {
+          fs.rmSync(captureDir, { recursive: true, force: true });
+        } catch { /* ignore */ }
+        j.captureDir = null;
+      }, 60 * 60 * 1000);
+    })
+    .catch(err => Object.assign(job, { status: 'error', error: err.message }));
 
   res.json({ jobId });
 });
@@ -131,7 +150,13 @@ app.get('/api/download/:jobId', (req, res) => {
   if (!job || job.status !== 'done' || !job.zipPath) {
     return res.status(404).json({ error: 'Not ready or job not found.' });
   }
-  res.download(job.zipPath, path.basename(job.zipPath));
+  res.download(job.zipPath, path.basename(job.zipPath), err => {
+    if (err || !job.captureDir) return;
+    try {
+      fs.rmSync(job.captureDir, { recursive: true, force: true });
+    } catch { /* ignore */ }
+    job.captureDir = null;
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -43,20 +43,13 @@ class Sequence {
 // ---------------------------------------------------------------------------
 
 /**
- * @param {string}  siteDir         Absolute path to the site folder
- * @param {{ username: string, password: string }} credentials
- * @param {object|null} configOverride  Optional modified config from the UI
- * @param {(msg: string) => void} [onProgress]
- * @returns {string} Absolute path to the output ZIP
- */
-/**
  * @param {string}  siteDir        Absolute path to the site folder
  * @param {{ username: string, password: string }} credentials
  * @param {object|null} configOverride  Optional modified config from the UI
  * @param {(msg: object|string) => Promise<void>} [onProgress]
  * @param {string|null} outputBaseDir   Override for the output root (used on Netlify/Lambda
  *                                      to write to /tmp instead of siteDir/output)
- * @returns {string} Absolute path to the output ZIP
+ * @returns {{ zipPath: string, captureDir: string }} ZIP path and folder of raw PNGs (delete after thumbnails/download).
  */
 export async function run(siteDir, credentials, configOverride = null, onProgress = null, outputBaseDir = null) {
   const config = configOverride
@@ -89,9 +82,9 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
   await log('Packaging…');
   const zipPath = path.join(outBase, `run-${timestamp}.zip`);
   await zipDirectory(runDir, zipPath);
-  fs.rmSync(runDir, { recursive: true });
+  // Keep `runDir` so UI / API can serve thumbnails from `entry.filepath` until the host deletes it.
 
-  return zipPath;
+  return { zipPath, captureDir: runDir };
 }
 
 // ---------------------------------------------------------------------------
