@@ -1,5 +1,6 @@
 {
   "baseUrl": "https://dev.imcivreehcp.com",
+  "postClickCaptureDelayMs": 1500,
 
   "pages": [
     {
@@ -45,7 +46,11 @@
           "mobile":  { "width": 390,  "height": 800 },
           "includeMobile": true,
           "actions": [
-            { "type": "click", "text": "Important Safety Information" }
+            {
+              "type": "click",
+              "text": "Important Safety Information",
+              "selector": "[class*='isi-drawer-header__toggle']"
+            }
           ],
           "waitFor": "isi-expanded"
         },

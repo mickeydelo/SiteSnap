@@ -11,6 +11,16 @@ const DEFAULTS = {
   mobile:  MOBILE_VIEWPORT,
 };
 
+/** Default when `config.postClickCaptureDelayMs` is omitted or invalid. */
+const DEFAULT_POST_CLICK_CAPTURE_DELAY_MS = 1500;
+
+/** @param {object} config */
+function postClickCaptureDelayMs(config) {
+  const v = config?.postClickCaptureDelayMs;
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
+  return DEFAULT_POST_CLICK_CAPTURE_DELAY_MS;
+}
+
 // ---------------------------------------------------------------------------
 // Sequential file-name counter
 // ---------------------------------------------------------------------------
@@ -90,7 +100,8 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
 
 async function runDevice(config, credentials, outputDir, device, log) {
   const { browser, page } = await launchContext(DEFAULTS[device], credentials);
-  const seq = new Sequence(device === 'desktop' ? 'd_' : 'm_');
+  const seq      = new Sequence(device === 'desktop' ? 'd_' : 'm_');
+  const clickCapDelay = postClickCaptureDelayMs(config);
 
   try {
     // ── Entry sequence (always runs, even if the home page is disabled for capture)
@@ -145,10 +156,10 @@ async function runDevice(config, credentials, outputDir, device, log) {
           }
         }
         if (device === 'mobile') {
-          await captureHamburger(page, outputDir, seq, log);
+          await captureHamburger(page, outputDir, seq, log, clickCapDelay);
         }
         for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
-          await prepareAndCapture(page, step, outputDir, seq, entryPage.id, device, log);
+          await prepareAndCapture(page, step, outputDir, seq, entryPage.id, device, log, clickCapDelay);
         }
       }
     }
@@ -172,7 +183,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
           continue;
         }
         for (const step of steps) {
-          await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
+          await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log, clickCapDelay);
         }
       }
     }
@@ -207,13 +218,14 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
     if (popup) {
       // Opened in a new tab — capture it and close
       await waitForNetworkIdle(popup);
+      await popup.waitForTimeout(postClickCaptureDelayMs(config));
       const stepViewport = step[device];
       if (stepViewport) await popup.setViewportSize(stepViewport);
       await popup.screenshot({ path: filepath, fullPage: false });
       await popup.close();
     } else {
       // Interstitial appeared as a modal/overlay on the current page
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(postClickCaptureDelayMs(config));
       const stepViewport = step[device];
       if (stepViewport) await page.setViewportSize(stepViewport);
       await page.screenshot({ path: filepath, fullPage: false });
@@ -233,7 +245,7 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log) {
+async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log, clickDelayMs) {
   try {
     if (step.actions?.length) {
       await executeActions(page, step.actions);
@@ -243,6 +255,9 @@ async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log
     }
     if (step.hideISI) {
       await hideISITray(page);
+    }
+    if (step.actions?.some(a => a.type === 'click')) {
+      await page.waitForTimeout(clickDelayMs);
     }
     await captureStep(page, step, outputDir, seq, pageId, device, log);
   } catch (err) {
@@ -271,7 +286,7 @@ async function captureStep(page, step, outputDir, seq, pageId, device, log) {
   await log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
 }
 
-async function captureHamburger(page, outputDir, seq, log) {
+async function captureHamburger(page, outputDir, seq, log, clickDelayMs) {
   const selectors = [
     // Site-specific: Gatsby header nav toggle
     '#gatsby-focus-wrapper > header > div.container > div > button',
@@ -293,7 +308,7 @@ async function captureHamburger(page, outputDir, seq, log) {
       const btn = page.locator(sel).first();
       if (await btn.isVisible({ timeout: 1000 })) {
         await btn.click();
-        await page.waitForTimeout(600);
+        await page.waitForTimeout(clickDelayMs);
 
         const filename = seq.next('nav-open-mobile');
         const filepath = path.join(outputDir, filename);

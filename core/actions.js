@@ -24,7 +24,13 @@ export async function executeActions(page, actions) {
 async function executeAction(page, action) {
   switch (action.type) {
     case 'acceptCookies': return acceptCookies(page);
-    case 'click':         return clickByText(page, action.text);
+    case 'click': {
+      const sel = action.selector != null && String(action.selector).trim();
+      if (sel) return clickBySelector(page, sel);
+      if (action.text != null && String(action.text).trim() !== '')
+        return clickByText(page, action.text);
+      throw new Error('click action requires text or selector');
+    }
     case 'input':         return fillInput(page, action.label, action.value);
     case 'select':        return selectOption(page, action.label, action.value);
     case 'checkbox':      return handleCheckbox(page, action.label, action.value, action.selector);
@@ -66,6 +72,16 @@ async function acceptCookies(page) {
       // try next candidate
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Click by CSS selector (attribute / class / id, etc.)
+// ---------------------------------------------------------------------------
+
+async function clickBySelector(page, selector) {
+  const el = page.locator(selector).first();
+  await el.waitFor({ state: 'visible', timeout: 15000 });
+  await el.click({ timeout: 5000 });
 }
 
 // ---------------------------------------------------------------------------
