@@ -16,9 +16,15 @@ const DEFAULTS = {
 // ---------------------------------------------------------------------------
 
 class Sequence {
-  constructor() { this.n = 1; }
+  /**
+   * @param {'d_' | 'm_'} prefix  Device tag for exported PNG names
+   */
+  constructor(prefix) {
+    this.n      = 1;
+    this.prefix = prefix;
+  }
   next(name) {
-    return `${String(this.n++).padStart(2, '0')}_${name}.png`;
+    return `${this.prefix}${String(this.n++).padStart(2, '0')}_${name}.png`;
   }
 }
 
@@ -84,7 +90,7 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
 
 async function runDevice(config, credentials, outputDir, device, log) {
   const { browser, page } = await launchContext(DEFAULTS[device], credentials);
-  const seq = new Sequence();
+  const seq = new Sequence(device === 'desktop' ? 'd_' : 'm_');
 
   try {
     // ── Entry sequence (always runs, even if the home page is disabled for capture)
