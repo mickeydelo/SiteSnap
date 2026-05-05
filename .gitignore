@@ -1,2 +1,5 @@
 node_modules/
 sites/*/output/
+sites/imcivree-hcp/.DS_Store
+.DS_Store
+pnpm-lock.yaml
