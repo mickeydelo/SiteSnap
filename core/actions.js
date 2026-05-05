@@ -13,10 +13,11 @@ const NETWORK_ACTIONS = new Set(['click', 'acceptCookies', 'select']);
 export async function executeActions(page, actions) {
   for (const action of actions) {
     await executeAction(page, action);
-    if (NETWORK_ACTIONS.has(action.type)) {
+    const isSelectorClick = action.type === 'click' && action.selector;
+    if (NETWORK_ACTIONS.has(action.type) && !isSelectorClick) {
       await waitForNetworkIdle(page, 800);
     } else {
-      await page.waitForTimeout(100); // input / checkbox — no network, just a repaint tick
+      await page.waitForTimeout(100);
     }
   }
 }
@@ -24,7 +25,7 @@ export async function executeActions(page, actions) {
 async function executeAction(page, action) {
   switch (action.type) {
     case 'acceptCookies': return acceptCookies(page);
-    case 'click':         return clickByText(page, action.text);
+    case 'click':         return action.selector ? clickBySelector(page, action.selector) : clickByText(page, action.text);
     case 'input':         return fillInput(page, action.label, action.value);
     case 'select':        return selectOption(page, action.label, action.value);
     case 'checkbox':      return handleCheckbox(page, action.label, action.value, action.selector);
@@ -71,6 +72,12 @@ async function acceptCookies(page) {
 // ---------------------------------------------------------------------------
 // Click by visible text
 // ---------------------------------------------------------------------------
+
+async function clickBySelector(page, selector) {
+  const el = page.locator(selector).first();
+  await el.waitFor({ state: 'visible', timeout: 10000 });
+  await el.click();
+}
 
 export async function clickByText(page, text) {
   // Wait up to 15 s for the element to be attached to the DOM before trying

@@ -88,6 +88,15 @@
       overflow-y: auto;
     }
 
+    .site-thumb {
+      display: block;
+      width: calc(100% - 32px);
+      margin: 0 16px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+    }
+
     .sidebar-label {
       font-size: 10px; font-weight: 700; letter-spacing: .08em;
       text-transform: uppercase; color: var(--muted);
@@ -461,7 +470,8 @@
       const username = sessionStorage.getItem('ss_username');
       const password = sessionStorage.getItem('ss_password');
 
-      if (!state.siteId || !username || !password) {
+      const requiresCredentials = sessionStorage.getItem('ss_requires_credentials') !== '0';
+      if (!state.siteId || (requiresCredentials && (!username || !password))) {
         window.location.href = '/';
         return;
       }
@@ -476,8 +486,10 @@
 
         if (config.error) throw new Error(config.error);
 
-        state.config   = deepClone(config);
-        state.siteName = sites.find(s => s.id === state.siteId)?.name ?? state.siteId;
+        state.config    = deepClone(config);
+        const siteInfo  = sites.find(s => s.id === state.siteId) ?? {};
+        state.siteName  = siteInfo.name ?? state.siteId;
+        state.imageUrl  = siteInfo.imageUrl ?? null;
 
         document.getElementById('header-site').textContent = state.siteName;
         document.getElementById('capture-btn').disabled = false;
@@ -493,7 +505,10 @@
     // ── Sidebar ──────────────────────────────────────────────────────────────
     function renderSidebar() {
       const nav = document.getElementById('sidebar');
-      nav.innerHTML = '<div class="sidebar-label">Pages</div>';
+      const thumb = state.imageUrl
+        ? `<img class="site-thumb" src="${state.imageUrl}" alt="${escHtml(state.siteName)}">`
+        : '';
+      nav.innerHTML = `${thumb}<div class="sidebar-label">Pages</div>`;
 
       state.config.pages.forEach((page, i) => {
         const enabled = page.enabled !== false;

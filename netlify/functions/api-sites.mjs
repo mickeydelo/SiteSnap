@@ -15,11 +15,13 @@ export const handler = async () => {
     .filter(d => d.isDirectory())
     .map(d => {
       let name = d.name;
+      let requiresCredentials = true;
       try {
         const meta = JSON.parse(fs.readFileSync(path.join(SITES_DIR, d.name, 'metadata.json'), 'utf8'));
         name = meta.siteName || name;
+        requiresCredentials = meta.requiresCredentials !== false;
       } catch { /* fall back to dir name */ }
-      return { id: d.name, name };
+      return { id: d.name, name, requiresCredentials };
     });
 
   return {

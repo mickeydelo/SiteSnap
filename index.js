@@ -15,6 +15,13 @@ const jobs = new Map(); // jobId → { status, entries[], total, log[], zipPath,
 app.use(express.json({ limit: '2mb' })); // config overrides can be large-ish
 app.use(express.static(path.join(__dirname, 'ui')));
 
+// Serve per-site thumbnail images: GET /site-image/:siteId
+app.get('/site-image/:siteId', (req, res) => {
+  const imgPath = path.join(SITES_DIR, req.params.siteId, 'images', `${req.params.siteId}.png`);
+  if (!fs.existsSync(imgPath)) return res.sendStatus(404);
+  res.sendFile(imgPath);
+});
+
 // ---------------------------------------------------------------------------
 // API: list available sites
 // ---------------------------------------------------------------------------
@@ -28,13 +35,16 @@ app.get('/api/sites', (_req, res) => {
     .map(d => {
       const dir  = path.join(SITES_DIR, d.name);
       let   name = d.name;
+      let   requiresCredentials = true;
       try {
         const meta = JSON.parse(fs.readFileSync(path.join(dir, 'metadata.json'), 'utf8'));
         name = meta.siteName || name;
+        requiresCredentials = meta.requiresCredentials !== false;
       } catch {
         // fall back to directory name
       }
-      return { id: d.name, name };
+      const hasImage = fs.existsSync(path.join(dir, 'images', `${d.name}.png`));
+      return { id: d.name, name, requiresCredentials, imageUrl: hasImage ? `/site-image/${d.name}` : null };
     });
 
   res.json(sites);
@@ -59,13 +69,23 @@ app.get('/api/config/:siteId', (req, res) => {
 app.post('/api/run', (req, res) => {
   const { jobId: clientJobId, siteId, username, password, config: configOverride } = req.body;
 
-  if (!siteId || !username || !password) {
-    return res.status(400).json({ error: 'siteId, username, and password are required.' });
+  if (!siteId) {
+    return res.status(400).json({ error: 'siteId is required.' });
   }
 
   const siteDir = path.join(SITES_DIR, siteId);
   if (!fs.existsSync(path.join(siteDir, 'config.json'))) {
     return res.status(404).json({ error: 'Site not found.' });
+  }
+
+  let requiresCredentials = true;
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(siteDir, 'metadata.json'), 'utf8'));
+    requiresCredentials = meta.requiresCredentials !== false;
+  } catch { /* fall back to requiring credentials */ }
+
+  if (requiresCredentials && (!username || !password)) {
+    return res.status(400).json({ error: 'siteId, username, and password are required.' });
   }
 
   const jobId = clientJobId || randomUUID();
@@ -82,7 +102,8 @@ app.post('/api/run', (req, res) => {
   };
 
   // Fire-and-forget — credentials are passed directly and never stored
-  run(siteDir, { username, password }, configOverride ?? null, onProgress)
+  const credentials = requiresCredentials ? { username, password } : null;
+  run(siteDir, credentials, configOverride ?? null, onProgress)
     .then(zipPath => Object.assign(job, { status: 'done',  zipPath }))
     .catch(err   => Object.assign(job, { status: 'error', error: err.message }));
 

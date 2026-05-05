@@ -65,5 +65,21 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
   await context.route(/google-analytics\.com|googletagmanager\.com|doubleclick\.net|googlesyndication\.com|adobe\.com\/b\/ss|omtrdc\.net|demdex\.net|everesttech\.net|scorecardresearch\.com|quantserve\.com|hotjar\.com|segment\.io|segment\.com|sentry\.io|newrelic\.com|nr-data\.net|optimizely\.com|heap\.io|mixpanel\.com|clarity\.ms/, route => route.abort());
 
   const page = await context.newPage();
+
+  // Disable CSS transitions and animations on every page load so screenshots
+  // always show the final settled state, never a mid-animation frame.
+  await page.addInitScript(() => {
+    const applyNoMotion = () => {
+      const s = document.createElement('style');
+      s.textContent = '*, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; animation-delay: 0ms !important; }';
+      (document.head ?? document.documentElement).appendChild(s);
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyNoMotion);
+    } else {
+      applyNoMotion();
+    }
+  });
+
   return { browser, context, page };
 }

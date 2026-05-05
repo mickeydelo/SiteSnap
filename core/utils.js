@@ -28,7 +28,9 @@ export async function hideISITray(page) {
       [id*="isi_tray"],
       .isi-drawer,
       [class*="isi-drawer"],
-      [id*="isi-drawer"] {
+      [id*="isi-drawer"],
+      .floating-isi,
+      [class*="floating-isi"] {
         display:         none         !important;
         visibility:      hidden       !important;
         opacity:         0            !important;

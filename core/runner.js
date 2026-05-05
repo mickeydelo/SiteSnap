@@ -60,11 +60,11 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
   fs.mkdirSync(mobileDir,  { recursive: true });
 
   try {
-    await log('[Desktop]');
-    await runDevice(config, credentials, desktopDir, 'desktop', log);
-
-    await log('[Mobile]');
-    await runDevice(config, credentials, mobileDir, 'mobile', log);
+    await log('[Desktop + Mobile — running in parallel]');
+    await Promise.all([
+      runDevice(config, credentials, desktopDir, 'desktop', log),
+      runDevice(config, credentials, mobileDir,  'mobile',  log),
+    ]);
   } catch (err) {
     fs.rmSync(runDir, { recursive: true, force: true });
     throw err;
@@ -120,7 +120,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
           if (entryPage.entryActions?.length) {
             await executeActions(page, entryPage.entryActions);
           }
-          await injectLogin(page, credentials);
+          if (credentials) await injectLogin(page, credentials);
           entryOk = true;
           break;
         } catch (err) {
@@ -159,14 +159,24 @@ async function runDevice(config, credentials, outputDir, device, log) {
           await captureExternal(page, config, pageCfg, step, outputDir, seq, device, log);
         }
       } else {
+        const pageUrl = `${config.baseUrl}${pageCfg.path}`;
         try {
-          await navigate(page, `${config.baseUrl}${pageCfg.path}`);
+          await navigate(page, pageUrl);
         } catch (err) {
           await log(`  [skip] ${pageCfg.label} — navigation failed: ${err.message}`);
           continue;
         }
+        let prevSkipped = false;
         for (const step of steps) {
-          await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
+          // Re-navigate if a previous step navigated away (e.g. form submit).
+          // Check both URL drift AND the skip flag — a POST can land on the same URL.
+          if (prevSkipped || !page.url().startsWith(pageUrl)) {
+            try { await navigate(page, pageUrl); } catch (navErr) {
+              await log(`  [skip] ${pageCfg.label} — re-navigation failed: ${navErr.message}`);
+              break;
+            }
+          }
+          prevSkipped = await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
         }
       }
     }
@@ -227,6 +237,7 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Returns true if the step was skipped (so the caller can re-navigate before the next step).
 async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log) {
   try {
     if (step.actions?.length) {
@@ -239,8 +250,10 @@ async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log
       await hideISITray(page);
     }
     await captureStep(page, step, outputDir, seq, pageId, device, log);
+    return false;
   } catch (err) {
     await log(`  [skip] ${device}: ${pageId}-${step.id} — ${err.message}`);
+    return true;
   }
 }
 

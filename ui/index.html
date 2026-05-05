@@ -73,6 +73,18 @@
       box-shadow: 0 0 0 3px rgba(99,102,241,.12);
     }
 
+    input:disabled {
+      background: #f9fafb;
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .field-note {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 5px;
+    }
+
     .field { margin-bottom: 18px; }
 
     .btn {
@@ -125,14 +137,16 @@
         </select>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-username">
         <label for="username">Username</label>
         <input id="username" type="text" autocomplete="username" required placeholder="you@example.com" />
+        <p class="field-note" id="note-username" style="display:none">Not required for this site</p>
       </div>
 
-      <div class="field">
+      <div class="field" id="field-password">
         <label for="password">Password</label>
         <input id="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+        <p class="field-note" id="note-password" style="display:none">Not required for this site</p>
       </div>
 
       <button class="btn" type="submit">Continue</button>
@@ -142,6 +156,19 @@
   </div>
 
   <script>
+    const siteCredentials = {};
+
+    function setCredentialFields(required) {
+      const uInput = document.getElementById('username');
+      const pInput = document.getElementById('password');
+      uInput.disabled = !required;
+      pInput.disabled = !required;
+      uInput.required = required;
+      pInput.required = required;
+      document.getElementById('note-username').style.display = required ? 'none' : '';
+      document.getElementById('note-password').style.display = required ? 'none' : '';
+    }
+
     // Populate site dropdown
     fetch('/api/sites')
       .then(r => r.json())
@@ -153,26 +180,35 @@
           return;
         }
         sites.forEach(s => {
+          siteCredentials[s.id] = s.requiresCredentials !== false;
           const o = document.createElement('option');
           o.value = s.id;
           o.textContent = s.name;
           sel.appendChild(o);
         });
         sel.selectedIndex = 0;
+        setCredentialFields(siteCredentials[sel.value] !== false);
       });
+
+    document.getElementById('site').addEventListener('change', e => {
+      setCredentialFields(siteCredentials[e.target.value] !== false);
+    });
 
     document.getElementById('form').addEventListener('submit', e => {
       e.preventDefault();
-      const siteId   = document.getElementById('site').value;
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value;
+      const siteId  = document.getElementById('site').value;
+      if (!siteId) return;
 
-      if (!siteId || !username || !password) return;
+      const needsCreds = siteCredentials[siteId] !== false;
+      const username   = document.getElementById('username').value.trim();
+      const password   = document.getElementById('password').value;
+      if (needsCreds && (!username || !password)) return;
 
       // Store credentials in sessionStorage — never in the URL
       sessionStorage.setItem('ss_site',     siteId);
-      sessionStorage.setItem('ss_username', username);
-      sessionStorage.setItem('ss_password', password);
+      sessionStorage.setItem('ss_username', needsCreds ? username : '');
+      sessionStorage.setItem('ss_password', needsCreds ? password : '');
+      sessionStorage.setItem('ss_requires_credentials', needsCreds ? '1' : '0');
 
       window.location.href = `/run?site=${encodeURIComponent(siteId)}`;
     });

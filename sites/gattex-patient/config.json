@@ -1,0 +1,143 @@
+{
+  "baseUrl": "https://www.gattex.com",
+
+  "pages": [
+    {
+      "id": "home",
+      "label": "Home Page",
+      "path": "/",
+      "includesEntry": true,
+      "entryActions": [
+        { "type": "acceptCookies" }
+      ],
+      "steps": [
+        {
+          "id": "with-overlays",
+          "enabled": true,
+          "label": "Cookie bar, message bar & ISI tray",
+          "description": "Raw entry state — all overlays visible before any interaction",
+          "phase": "pre-entry",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true
+        },
+        {
+          "id": "message-bar-isi-open",
+          "enabled": true,
+          "label": "Message bar & ISI tray open",
+          "description": "Cookie dismissed — message bar and ISI tray both visible at default size",
+          "phase": "post-entry",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true
+        },
+        {
+          "id": "isi-minimized",
+          "enabled": true,
+          "label": "ISI tray minimized",
+          "description": "Dismiss message bar, minimize ISI tray, capture viewport",
+          "phase": "authenticated",
+          "captureMode": "viewport",
+          "desktop": { "width": 1442, "height": 900 },
+          "mobile":  { "width": 390,  "height": 800 },
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": ".message-bar .close" },
+            { "type": "click", "selector": ".floating-isi .toggle-expand" }
+          ]
+        },
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "description": "Complete scroll capture with ISI tray hidden",
+          "phase": "authenticated",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        }
+      ]
+    },
+
+    {
+      "id": "short-bowel-syndrome",
+      "label": "Short Bowel Syndrome",
+      "path": "/short-bowel-syndrome/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        }
+      ]
+    },
+
+    {
+      "id": "short-bowel-syndrome-management",
+      "label": "SBS Management",
+      "path": "/short-bowel-syndrome-management/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        }
+      ]
+    },
+
+    {
+      "id": "sign-up",
+      "label": "Sign Up",
+      "path": "/sign-up/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page (empty form)",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
+        },
+        {
+          "id": "validation-errors",
+          "enabled": true,
+          "label": "Full page (validation errors)",
+          "description": "Submit empty form to trigger all field error states",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "text": "Sign up" }
+          ],
+          "waitFor": "network-idle"
+        },
+        {
+          "id": "filled-form",
+          "enabled": true,
+          "label": "Full page (form filled)",
+          "description": "Form filled with test data",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true,
+          "actions": [
+            { "type": "input",    "label": "First Name",                               "value": "Rhythm",                        "editable": true },
+            { "type": "input",    "label": "Last Name",                                "value": "Health",                        "editable": true },
+            { "type": "input",    "label": "Email Address",                            "value": "rhythmtest@coefficient.health", "editable": true },
+            { "type": "input",    "label": "Zip Code",                                 "value": "08043",                         "editable": true },
+            { "type": "select",   "label": "Do you or someone you care for have SBS?", "value": "I have been diagnosed with SBS", "editable": true },
+            { "type": "input",    "label": "Age of person experiencing bowel problems", "value": "45",                           "editable": true },
+            { "type": "checkbox", "label": "I agree to receive email communications",  "value": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

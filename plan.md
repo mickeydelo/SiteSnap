@@ -25,9 +25,11 @@ and triggers a Playwright run that produces a timestamped ZIP with `desktop/` an
 
 ### ISI tray
 - **Must never appear** in any capture after the entry screenshot.
-- Suppress with `page.addStyleTag()` targeting `.isi-tray` and `[class*="isi-tray"]`.
+- Suppress with `page.addStyleTag()` targeting `.isi-tray`, `[class*="isi-tray"]`, `.floating-isi`, `[class*="floating-isi"]`.
 - Re-apply after **every `page.goto()`** because addStyleTag is scoped to the page document.
 - Do NOT call hideISITray before the post-entry viewport capture — that step intentionally shows the ISI tray.
+- **GATTEX** uses `aside.floating-isi`. The tray has no expand — it loads open. Minimize via `{ "type": "click", "selector": ".floating-isi .toggle-expand" }`. There is no `waitFor: "isi-expanded"` for GATTEX.
+- Animations on all elements are disabled globally via `page.addInitScript` in `browser.js` so toggle/dismiss captures never show mid-animation frames.
 
 ### Browser sessions
 - Launch a fresh browser context for every device pass (desktop, mobile).
@@ -90,9 +92,11 @@ and triggers a Playwright run that produces a timestamped ZIP with `desktop/` an
           "includeMobile": true,
           "mobileOnly": false,
           "actions": [
-            { "type": "select | input | checkbox", "label": "...", "value": "...", "editable": true }
+            { "type": "select | input | checkbox", "label": "...", "value": "...", "editable": true },
+            { "type": "click", "text": "visible text" },
+            { "type": "click", "selector": ".css-selector" }  // bypasses network-idle wait — use for DOM-only toggles
           ],
-          "waitFor": "no-results | network-idle",
+          "waitFor": "no-results | network-idle | isi-expanded",
           "trigger": { "type": "click", "text": "link text" }  // external only
         }
       ]
@@ -106,10 +110,27 @@ and triggers a Playwright run that produces a timestamped ZIP with `desktop/` an
 ## Adding a new site
 
 1. Create `/sites/<site-id>/`
-2. Add `metadata.json` with `{ "siteName": "Display Name" }`
+2. Add `metadata.json`:
+   ```json
+   {
+     "siteName": "Display Name",
+     "requiresCredentials": false   // omit or set true for HTTP-Basic-Auth / form-login sites
+   }
+   ```
 3. Add `config.json` following the schema above
-4. Create `output/` sub-folder (or let the runner create it automatically)
+4. Optionally add `sites/<site-id>/images/<site-id>.png` — shown above Pages in the sidebar
 5. Restart the server — the site appears in the landing page dropdown
+
+### Production (no-credentials) sites
+- Set `"requiresCredentials": false` in `metadata.json`.
+- The login page grays out the username/password fields and shows "Not required for this site".
+- The server skips credential validation and passes `null` credentials to the runner.
+- `injectLogin` is skipped when credentials are `null`.
+
+### Form-submit steps that navigate away
+- Clicking a submit button on a non-entry page causes a full navigation, which breaks subsequent steps.
+- The runner detects this via the `prevSkipped` flag: if a step was skipped, it re-navigates to the page URL before the next step runs — even if the POST lands back on the same URL.
+- Example: sign-up validation-errors step (submit empty form) → page navigates → runner re-navigates to `/sign-up/` → filled-form step runs cleanly.
 
 ---
 
@@ -117,22 +138,24 @@ and triggers a Playwright run that produces a timestamped ZIP with `desktop/` an
 
 ```
 run(siteDir, credentials, configOverride?)
-  ├── runDevice(..., 'desktop')
+  ├── Promise.all([                          ← desktop + mobile run in parallel
+  │     runDevice(..., 'desktop'),
+  │     runDevice(..., 'mobile')
+  │   ])
+  │     Each runDevice:
   │     ├── for each page:
   │     │     ├── if external → captureExternal()
   │     │     ├── if includesEntry:
   │     │     │     ├── navigate to path
   │     │     │     ├── pre-entry steps → captureStep()
   │     │     │     ├── executeActions(entryActions)
-  │     │     │     ├── injectLogin()
+  │     │     │     ├── injectLogin() — skipped if credentials is null
   │     │     │     ├── post-entry steps → captureStep()
   │     │     │     └── authenticated steps → prepareAndCapture()
-  │     │     └── else → navigate + prepareAndCapture()
+  │     │     └── else → navigate + for each step:
+  │     │                  re-navigate if prevSkipped or URL drifted
+  │     │                  prepareAndCapture() → returns true if skipped
   │     └── browser.close()
-  ├── runDevice(..., 'mobile')
-  │     └── same as desktop, but:
-  │           - uses 390×800 viewport
-  │           - after post-entry: captureHamburger()
   ├── zipDirectory(runDir, zipPath)
   └── rmSync(runDir)
 ```
@@ -205,5 +228,6 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 | `netlify/functions/api-download.mjs` | `GET /api/download/:jobId` |
 | `netlify.toml` | Build config + function settings + API redirects |
 | `sites/<id>/config.json` | Site automation config |
-| `sites/<id>/metadata.json` | Display name |
+| `sites/<id>/metadata.json` | Display name, `requiresCredentials` flag |
+| `sites/<id>/images/<id>.png` | Optional sidebar thumbnail — served via `GET /site-image/:siteId` |
 | `sites/<id>/output/` | Run ZIPs stored here (local only) |
