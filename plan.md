@@ -353,20 +353,29 @@ The crash is at `setViewportSize`, not during scroll, because the images finish 
 *after* the JS scroll loop returns (they load async). By the time `setViewportSize` fires,
 Chromium is already near its limit.
 
+**Things tried that did NOT fix it (second round):**
+- `page.screenshot({ fullPage: true })` on Lambda — silently returns a viewport-sized image
+  (390×800). `@sparticuz/chromium` does not support `captureBeyondViewport` properly. All
+  pages that used this path came out at exactly the viewport dimensions.
+
 **Working fix (in `capture.js`):**
 ```
-On Lambda:   skip scrollForLazyLoad → page.screenshot({ fullPage: true }) → fallback to viewport
+On Lambda:   skip scrollForLazyLoad → setViewportSize to fullHeight (capped 15000px) → screenshot
 Local:       scrollForLazyLoad → setViewportSize to fullHeight (capped 15000px) → screenshot
 ```
-Playwright's native `fullPage: true` uses CDP's `captureBeyondViewport`, which scrolls and
-captures in small chunks rather than holding the entire render tree in one buffer. Without the
-pre-scroll filling memory first, this works within Lambda's 3 GB limit.
+The expand-viewport path is identical on both environments. The only difference is whether
+`scrollForLazyLoad` runs first. Skipping it on Lambda eliminates the memory spike while still
+producing a full-height capture. Images that were only lazy-loaded below the fold won't appear,
+but the page structure and above-the-fold content captures correctly.
 
 Detection: `const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY)`
 at module level in `capture.js` (evaluated once at cold-start, not per call).
 
-**Trade-off:** Lazy-loaded images at the bottom of the page may not appear in Lambda captures.
+**Trade-off:** Lazy-loaded images below the fold won't appear in Lambda mobile captures.
 In practice pharma sites load above-the-fold content eagerly; the trade-off is acceptable.
+
+**Key rule:** Never use `page.screenshot({ fullPage: true })` with `@sparticuz/chromium` —
+it does not work and silently produces the wrong output with no error.
 
 ### Add `page.isClosed()` fast-fail after browser crashes
 When Chromium dies mid-run every subsequent operation throws "Target page, context or browser
