@@ -3,17 +3,14 @@
   functions = "netlify/functions"
 
 [functions]
-  node_bundler = "esbuild"
-  # sites/** holds config.json / metadata.json — bundled with every function
+  # NFT deploys .mjs source files as native ESM — no CJS require() wrapper is generated.
+  # esbuild wraps .mjs in a CJS shim that require()s the source, which always fails for ESM.
+  node_bundler = "nft"
   included_files = ["sites/**", "netlify/functions/_blobs.mjs"]
-  # Keep these as-is (not inlined by esbuild); Netlify deploys them alongside the bundle.
-  # playwright-core: used by browser.js at runtime
-  # @sparticuz/chromium: large pre-built binary, must not be inlined
   external_node_modules = ["@sparticuz/chromium", "playwright-core"]
 
 # Extra memory + max timeout for the Playwright background worker
 [functions.api-run-background]
-  node_bundler = "nft"
   memory  = 3008
   timeout = 900
 
