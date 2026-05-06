@@ -332,50 +332,71 @@ all its remaining captures are silently skipped and packaging completes with par
 **Fix:** Detect `process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME` and run passes
 sequentially there. Local stays parallel for speed.
 
-### Mobile full-page captures OOM Lambda — root cause and working fix
+### Mobile full-page captures OOM Lambda — complete troubleshooting history
 
-**Symptom:** Run stops at `04_nav-open-mobile.png` (last viewport capture before the first
-full-page step). All remaining mobile captures skipped with `Target page, context or browser
-has been closed` at `page.setViewportSize`. Final log line: `browser closed — skipping remaining pages`.
+**Symptom:** Run stops mid-way through mobile captures. All remaining steps skipped with
+`Target page, context or browser has been closed` at `page.setViewportSize`.
+Final log line: `browser closed — skipping remaining pages`.
 
-**Things tried that did NOT fix it:**
-1. Cap `safeHeight = Math.min(fullHeight, 15000)` in `capture.js` — crash persisted because
-   the page was under 15000px; the cap never triggered.
-2. `deviceScaleFactor: 1` on Lambda (was 2) in `browser.js` — crash persisted even at 1x scale.
-   The render buffer reduction was real but not the bottleneck.
+---
 
-**Root cause:** `scrollForLazyLoad` is the culprit. It pre-scrolls the full page in 6 jumps to
-trigger lazy-loaded images before capturing. On a pharma marketing page this loads hundreds of MB
-of decoded image data into Chromium's memory. Then `setViewportSize` to the full document height
-tries to repaint all of it at once — the combined memory spike kills the browser.
+**Attempt 1 — `safeHeight = Math.min(fullHeight, 15000)` cap:** Did not fix it.
+The Gattex pages are well under 15000px; the cap never triggered.
 
-The crash is at `setViewportSize`, not during scroll, because the images finish decoding
-*after* the JS scroll loop returns (they load async). By the time `setViewportSize` fires,
-Chromium is already near its limit.
+**Attempt 2 — `deviceScaleFactor: 1` on Lambda (was 2):** Did not fix it.
+Halving the render buffer size was not the bottleneck.
 
-**Things tried that did NOT fix it (second round):**
-- `page.screenshot({ fullPage: true })` on Lambda — silently returns a viewport-sized image
-  (390×800). `@sparticuz/chromium` does not support `captureBeyondViewport` properly. All
-  pages that used this path came out at exactly the viewport dimensions.
+**Attempt 3 — Skip `scrollForLazyLoad` on Lambda, keep expand-viewport:**
+Partially worked — `home-full-page` still crashed.
+`scrollForLazyLoad` pre-loads all below-fold images into Chromium memory; removing it
+reduced pressure but the home page's full height (~10 000 px on mobile) was still enough to OOM.
 
-**Working fix (in `capture.js`):**
+**Attempt 4 — Skip scroll + `page.screenshot({ fullPage: true })` on Lambda:**
+Did not fix it. `@sparticuz/chromium` does NOT support `captureBeyondViewport`.
+`fullPage: true` silently returns a viewport-sized image (390×800) with no error thrown.
+Do not use this path with sparticuz — it produces wrong output with no warning.
+
+**Attempt 5 — Skip scroll + `page.route('**', blockMedia)` image-blocking + expand-viewport:**
+Made it worse. `home-full-page` succeeded, but the catch-all `page.route` added overhead
+for every network request and subsequent pages (short-bowel-syndrome) then OOMed.
+The image route also left a stale handler if `setViewportSize` threw before `unroute` ran.
+
+---
+
+**Root cause (confirmed):**
+Mobile layouts stack content vertically — the Gattex home page is ~10 000 px tall on mobile
+vs ~5 000 px on desktop. When `setViewportSize` fires, every below-fold element simultaneously
+enters the viewport. IntersectionObserver callbacks fire for all of them at once: images are
+fetched and decoded, fonts load, JS scroll handlers run. The combined spike kills Chromium.
+Desktop works because the same page is only ~5 000 px tall at desktop width.
+
+The crash always appears at `setViewportSize`, not during scroll, because image decoding
+finishes async — Chromium is already near its limit by the time the resize triggers the repaint.
+
+**Lambda `Memory Usage` in logs (e.g. 960 MB, 1010 MB) reflects the Node.js process only —
+NOT Chromium's child process memory. Chromium can silently consume 2–3 GB and be OOM-killed
+while Lambda reports a modest number. Do not use this figure to diagnose Chromium crashes.**
+
+---
+
+**Working fix (confirmed):**
 ```
-On Lambda:   skip scrollForLazyLoad → setViewportSize to fullHeight (capped 15000px) → screenshot
-Local:       scrollForLazyLoad → setViewportSize to fullHeight (capped 15000px) → screenshot
+Lambda mobile:   skip scrollForLazyLoad → cap height at 5000px → setViewportSize → screenshot
+Lambda desktop:  skip scrollForLazyLoad → cap height at 15000px → setViewportSize → screenshot
+Local (both):    scrollForLazyLoad → cap height at 15000px → setViewportSize → screenshot
 ```
-The expand-viewport path is identical on both environments. The only difference is whether
-`scrollForLazyLoad` runs first. Skipping it on Lambda eliminates the memory spike while still
-producing a full-height capture. Images that were only lazy-loaded below the fold won't appear,
-but the page structure and above-the-fold content captures correctly.
+Key: `viewport.width <= 768` detects mobile in `capture.js`. The 5000px cap means at most
+390 × 5000 = 1.95M pixels are rendered — well within Lambda's limit. Below-fold content
+(below 5000px) never loads because it never enters the viewport.
 
-Detection: `const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY)`
-at module level in `capture.js` (evaluated once at cold-start, not per call).
+`const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY)` is set at
+module level in `capture.js` — evaluated once at cold-start, not per screenshot call.
 
-**Trade-off:** Lazy-loaded images below the fold won't appear in Lambda mobile captures.
-In practice pharma sites load above-the-fold content eagerly; the trade-off is acceptable.
-
-**Key rule:** Never use `page.screenshot({ fullPage: true })` with `@sparticuz/chromium` —
-it does not work and silently produces the wrong output with no error.
+**Trade-offs:**
+- Lambda mobile captures are capped at 5000px; content below that is not shown.
+- No lazy-loaded images appear below the fold in Lambda captures (scroll skipped).
+- Local captures are unaffected — full scroll + full height as before.
+- Pharma sites load hero/key-message content eagerly; the cut-off is acceptable for review.
 
 ### Add `page.isClosed()` fast-fail after browser crashes
 When Chromium dies mid-run every subsequent operation throws "Target page, context or browser
