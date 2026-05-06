@@ -2,36 +2,26 @@ const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY
 
 export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
   if (fullPage) {
-    // On Lambda: skip the lazy-load scroll (it pre-fills Chromium memory with decoded images).
-    // Images are also blocked during the viewport expansion (see below) for the same reason.
+    // On Lambda: skip the lazy-load scroll. It pre-loads all images into Chromium memory,
+    // and the subsequent setViewportSize triggers a repaint of all of them at once → OOM.
     if (!ON_LAMBDA) await scrollForLazyLoad(page);
     if (afterScroll) await afterScroll();
 
     const viewport   = page.viewportSize();
     const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
-    const safeHeight = Math.min(fullHeight, 15000);
 
-    if (ON_LAMBDA) {
-      // When setViewportSize fires, all below-fold elements enter the viewport simultaneously,
-      // triggering IntersectionObserver lazy-load callbacks for every image at once.
-      // Block image/media requests during the expansion so nothing is fetched or decoded.
-      // Above-fold images (already in memory) render normally; below-fold areas show blank.
-      const blockMedia = route => {
-        const type = route.request().resourceType();
-        if (type === 'image' || type === 'media') route.abort();
-        else route.continue();
-      };
-      await page.route('**', blockMedia);
-      await page.setViewportSize({ width: viewport.width, height: safeHeight });
-      await page.screenshot({ path: filepath, fullPage: false });
-      await page.setViewportSize(viewport); // restore before unrouting
-      await page.unroute('**', blockMedia);
-    } else {
-      await page.setViewportSize({ width: viewport.width, height: safeHeight });
-      await page.screenshot({ path: filepath, fullPage: false });
-      await page.setViewportSize(viewport); // restore
-    }
+    // Mobile layouts stack content vertically and are 2–3× taller than desktop.
+    // On Lambda, expanding to full mobile height OOMs Chromium even without pre-scroll
+    // (IntersectionObserver fires for all newly-visible elements simultaneously).
+    // Cap mobile at 5000px on Lambda — captures all critical content without crashing.
+    // Desktop pages are typically shorter, so the 15000px cap is rarely hit.
+    const isMobile   = viewport.width <= 768;
+    const maxHeight  = ON_LAMBDA && isMobile ? 5000 : 15000;
+    const safeHeight = Math.min(fullHeight, maxHeight);
+
+    await page.setViewportSize({ width: viewport.width, height: safeHeight });
+    await page.screenshot({ path: filepath, fullPage: false });
+    await page.setViewportSize(viewport); // restore
   } else {
     await page.screenshot({ path: filepath, fullPage: false });
   }
