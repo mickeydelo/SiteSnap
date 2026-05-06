@@ -7,14 +7,13 @@ const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   ? path.join(process.env.LAMBDA_TASK_ROOT, 'sites')
   : path.join(process.cwd(), 'sites');
 
-// Kick off Chromium extraction at module load time so it runs in parallel
-// with request parsing and Blobs setup instead of blocking browser launch.
-// On a warm container /tmp/chromium already exists and this resolves instantly.
-const chromiumReady = process.env.AWS_LAMBDA_FUNCTION_NAME
-  ? import('@sparticuz/chromium').then(m => m.default.executablePath()).catch(() => null)
-  : null;
-
 export const handler = async (event) => {
+  // Start Chromium extraction immediately — runs in parallel with Blobs setup below.
+  // Kept inside the handler (not module level) to avoid interfering with cold-start.
+  const chromiumReady = process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? import('@sparticuz/chromium').then(m => m.default.executablePath()).catch(() => null)
+    : null;
+
   let body;
   try {
     body = JSON.parse(event.body || '{}');
@@ -30,7 +29,15 @@ export const handler = async (event) => {
   const zips        = zipsStore();
 
   const jobState = { status: 'running', total: 0, entries: [], lastLog: 'Starting…', error: null };
-  await jobs.setJSON(jobId, { ...jobState }).catch(e => console.error('[bg] initial setJob failed:', e));
+  const writeOk  = await jobs.setJSON(jobId, { ...jobState }).then(() => true).catch(e => {
+    console.error('[bg] initial setJob FAILED — Blobs may be misconfigured:', e);
+    return false;
+  });
+  if (!writeOk) {
+    // Nothing we can do without Blobs — abort so the client times out cleanly.
+    console.error('[bg] Aborting: cannot write job state.');
+    return;
+  }
 
   const setJob = (patch) =>
     jobs.setJSON(jobId, patch).catch(e => console.error('[bg] setJob failed:', e));
