@@ -2,21 +2,36 @@ const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY
 
 export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
   if (fullPage) {
-    // On Lambda: skip the lazy-load scroll. scrollForLazyLoad decodes every image into
-    // Chromium memory; the subsequent setViewportSize then OOM-crashes the browser.
-    // Without the pre-scroll there is no memory spike and setViewportSize works fine.
-    // Trade-off: lazy-loaded images below the fold won't appear in Lambda captures.
-    // NOTE: page.screenshot({ fullPage: true }) does NOT work with @sparticuz/chromium —
-    // it silently returns a viewport-sized image, so we always use the expand-viewport path.
+    // On Lambda: skip the lazy-load scroll (it pre-fills Chromium memory with decoded images).
+    // Images are also blocked during the viewport expansion (see below) for the same reason.
     if (!ON_LAMBDA) await scrollForLazyLoad(page);
     if (afterScroll) await afterScroll();
+
     const viewport   = page.viewportSize();
     const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
     // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
     const safeHeight = Math.min(fullHeight, 15000);
-    await page.setViewportSize({ width: viewport.width, height: safeHeight });
-    await page.screenshot({ path: filepath, fullPage: false });
-    await page.setViewportSize(viewport); // restore
+
+    if (ON_LAMBDA) {
+      // When setViewportSize fires, all below-fold elements enter the viewport simultaneously,
+      // triggering IntersectionObserver lazy-load callbacks for every image at once.
+      // Block image/media requests during the expansion so nothing is fetched or decoded.
+      // Above-fold images (already in memory) render normally; below-fold areas show blank.
+      const blockMedia = route => {
+        const type = route.request().resourceType();
+        if (type === 'image' || type === 'media') route.abort();
+        else route.continue();
+      };
+      await page.route('**', blockMedia);
+      await page.setViewportSize({ width: viewport.width, height: safeHeight });
+      await page.screenshot({ path: filepath, fullPage: false });
+      await page.setViewportSize(viewport); // restore before unrouting
+      await page.unroute('**', blockMedia);
+    } else {
+      await page.setViewportSize({ width: viewport.width, height: safeHeight });
+      await page.screenshot({ path: filepath, fullPage: false });
+      await page.setViewportSize(viewport); // restore
+    }
   } else {
     await page.screenshot({ path: filepath, fullPage: false });
   }
