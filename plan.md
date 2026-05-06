@@ -332,22 +332,41 @@ all its remaining captures are silently skipped and packaging completes with par
 **Fix:** Detect `process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME` and run passes
 sequentially there. Local stays parallel for speed.
 
-### Mobile `deviceScaleFactor: 2` OOMs Lambda on full-page captures
-At 2x scale, `setViewportSize` to a tall page (e.g. 390×6000) makes Chromium allocate a
-780×12000 render buffer. After `scrollForLazyLoad` has already loaded all images into memory,
-this spikes past Lambda's limit and kills the browser — `Target page, context or browser has
-been closed` at `page.setViewportSize`. Symptom: run stops at `04_nav-open-mobile.png` (last
-successful capture before the first full-page step), then `browser closed — skipping remaining pages`.
+### Mobile full-page captures OOM Lambda — root cause and working fix
 
-**Fix:** Use `deviceScaleFactor: 1` on Lambda. `browser.js` checks
-`process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY`. Local runs keep 2x.
+**Symptom:** Run stops at `04_nav-open-mobile.png` (last viewport capture before the first
+full-page step). All remaining mobile captures skipped with `Target page, context or browser
+has been closed` at `page.setViewportSize`. Final log line: `browser closed — skipping remaining pages`.
 
-### Full-page viewport expansion can OOM Lambda
-`captureScreenshot` expands viewport to `document.scrollHeight` before shooting. On very
-tall pages (10 000 px+) this causes Chromium to OOM-crash on Lambda. The remaining captures
-all throw "Target page, context or browser has been closed", are individually caught as skips,
-and the run silently packages with missing screenshots.
-**Fix:** Cap `safeHeight = Math.min(fullHeight, 15000)` in `capture.js`.
+**Things tried that did NOT fix it:**
+1. Cap `safeHeight = Math.min(fullHeight, 15000)` in `capture.js` — crash persisted because
+   the page was under 15000px; the cap never triggered.
+2. `deviceScaleFactor: 1` on Lambda (was 2) in `browser.js` — crash persisted even at 1x scale.
+   The render buffer reduction was real but not the bottleneck.
+
+**Root cause:** `scrollForLazyLoad` is the culprit. It pre-scrolls the full page in 6 jumps to
+trigger lazy-loaded images before capturing. On a pharma marketing page this loads hundreds of MB
+of decoded image data into Chromium's memory. Then `setViewportSize` to the full document height
+tries to repaint all of it at once — the combined memory spike kills the browser.
+
+The crash is at `setViewportSize`, not during scroll, because the images finish decoding
+*after* the JS scroll loop returns (they load async). By the time `setViewportSize` fires,
+Chromium is already near its limit.
+
+**Working fix (in `capture.js`):**
+```
+On Lambda:   skip scrollForLazyLoad → page.screenshot({ fullPage: true }) → fallback to viewport
+Local:       scrollForLazyLoad → setViewportSize to fullHeight (capped 15000px) → screenshot
+```
+Playwright's native `fullPage: true` uses CDP's `captureBeyondViewport`, which scrolls and
+captures in small chunks rather than holding the entire render tree in one buffer. Without the
+pre-scroll filling memory first, this works within Lambda's 3 GB limit.
+
+Detection: `const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY)`
+at module level in `capture.js` (evaluated once at cold-start, not per call).
+
+**Trade-off:** Lazy-loaded images at the bottom of the page may not appear in Lambda captures.
+In practice pharma sites load above-the-fold content eagerly; the trade-off is acceptable.
 
 ### Add `page.isClosed()` fast-fail after browser crashes
 When Chromium dies mid-run every subsequent operation throws "Target page, context or browser
