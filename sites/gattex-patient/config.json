@@ -43,6 +43,7 @@
           "desktop": { "width": 1442, "height": 900 },
           "mobile":  { "width": 390,  "height": 800 },
           "includeMobile": true,
+          "captureHamburger": true,
           "actions": [
             { "type": "click", "selector": ".message-bar .close" },
             { "type": "click", "selector": ".floating-isi .toggle-expand" }
@@ -109,33 +110,48 @@
         {
           "id": "validation-errors",
           "enabled": true,
-          "label": "Full page (validation errors)",
-          "description": "Submit empty form to trigger all field error states",
-          "captureMode": "fullPage",
-          "hideISI": true,
+          "label": "Form — validation errors",
+          "description": "Submit empty form to trigger field errors; captures just the form element",
+          "captureMode": "element",
+          "selector": "#signupform",
           "includeMobile": true,
           "actions": [
-            { "type": "click", "text": "Sign up" }
-          ],
-          "waitFor": "network-idle"
+            { "type": "click", "selector": "#submit-sign-up-form" }
+          ]
         },
         {
           "id": "filled-form",
-          "enabled": true,
+          "enabled": false,
           "label": "Full page (form filled)",
           "description": "Form filled with test data",
           "captureMode": "fullPage",
           "hideISI": true,
           "includeMobile": true,
           "actions": [
-            { "type": "input",    "label": "First Name",                               "value": "Rhythm",                        "editable": true },
-            { "type": "input",    "label": "Last Name",                                "value": "Health",                        "editable": true },
-            { "type": "input",    "label": "Email Address",                            "value": "rhythmtest@coefficient.health", "editable": true },
+            { "type": "input",    "label": "First Name",                               "value": "Test",                        "editable": true },
+            { "type": "input",    "label": "Last Name",                                "value": "Test",                        "editable": true },
+            { "type": "input",    "label": "Email Address",                            "value": "test@test.com", "editable": true },
             { "type": "input",    "label": "Zip Code",                                 "value": "08043",                         "editable": true },
             { "type": "select",   "label": "Do you or someone you care for have SBS?", "value": "I have been diagnosed with SBS", "editable": true },
             { "type": "input",    "label": "Age of person experiencing bowel problems", "value": "45",                           "editable": true },
             { "type": "checkbox", "label": "I agree to receive email communications",  "value": true }
           ]
+        }
+      ]
+    },
+
+    {
+      "id": "sign-up-thank-you",
+      "label": "Sign Up — Thank You",
+      "path": "/signup-thank-you/",
+      "steps": [
+        {
+          "id": "full-page",
+          "enabled": true,
+          "label": "Full page",
+          "captureMode": "fullPage",
+          "hideISI": true,
+          "includeMobile": true
         }
       ]
     }

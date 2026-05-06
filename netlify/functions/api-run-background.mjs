@@ -16,7 +16,7 @@ export const handler = async (event) => {
   }
 
   const { jobId, siteId, username, password, config: configOverride } = body;
-  if (!jobId || !siteId || !username || !password) return;
+  if (!jobId || !siteId) return;
 
   const jobs        = jobsStore();
   const screenshots = screenshotsStore();
@@ -32,6 +32,17 @@ export const handler = async (event) => {
     const siteDir = path.join(SITES_DIR, siteId);
     if (!fs.existsSync(path.join(siteDir, 'config.json'))) {
       await setJob({ status: 'error', error: `Site not found: ${siteId}`, entries: [], total: 0, lastLog: null });
+      return;
+    }
+
+    let requiresCredentials = true;
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(siteDir, 'metadata.json'), 'utf8'));
+      requiresCredentials = meta.requiresCredentials !== false;
+    } catch { /* fall back to requiring credentials */ }
+
+    if (requiresCredentials && (!username || !password)) {
+      await setJob({ status: 'error', error: 'Credentials required but not provided.', entries: [], total: 0, lastLog: null });
       return;
     }
 
@@ -58,9 +69,10 @@ export const handler = async (event) => {
       }
     };
 
-    const { zipPath, captureDir } = await run(
+    const credentials = requiresCredentials ? { username, password } : null;
+    const zipPath = await run(
       siteDir,
-      { username, password },
+      credentials,
       configOverride ?? null,
       onProgress,
       '/tmp',
@@ -71,11 +83,6 @@ export const handler = async (event) => {
     await zips.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
     console.log('[bg] ZIP uploaded to Blobs');
     fs.unlinkSync(zipPath);
-    try {
-      fs.rmSync(captureDir, { recursive: true, force: true });
-    } catch (e) {
-      console.error('[bg] cleanup captureDir:', e);
-    }
 
     jobState.status = 'done';
     await jobs.setJSON(jobId, { ...jobState });

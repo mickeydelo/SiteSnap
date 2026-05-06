@@ -331,7 +331,20 @@ async function handleCheckbox(page, label, value, selector = null) {
       if (value === true  && !(await cb.isChecked())) await cb.check();
       if (value === false &&  (await cb.isChecked())) await cb.uncheck();
     },
-    // 3. Force-check the first attached checkbox — handles custom-styled checkboxes
+    // 3. Click the <label> element itself (for custom-styled checkboxes where the
+    //    visual toggle is a sibling span and the native input is hidden)
+    async () => {
+      const lbl = page.locator(`label:has-text("${label}")`).first();
+      await lbl.waitFor({ state: 'visible', timeout: 3000 });
+      await lbl.click();
+    },
+    // 3b. Click the .custom-checkbox span inside the label
+    async () => {
+      const span = page.locator(`label:has-text("${label}") .custom-checkbox`).first();
+      await span.waitFor({ state: 'visible', timeout: 3000 });
+      await span.click();
+    },
+    // 4. Force-check the first attached checkbox — handles custom-styled checkboxes
     //    where the native <input> is visually hidden (opacity:0, width:0, etc.)
     async () => {
       const cb = page.locator('input[type="checkbox"]').first();
@@ -339,7 +352,7 @@ async function handleCheckbox(page, label, value, selector = null) {
       if (value === true  && !(await cb.isChecked())) await cb.check({ force: true });
       if (value === false &&  (await cb.isChecked())) await cb.uncheck({ force: true });
     },
-    // 4. Any checkbox adjacent to text containing the label
+    // 5. Any checkbox adjacent to text containing the label
     async () => {
       const cb = page.locator('input[type="checkbox"]')
         .filter({ has: page.locator(`xpath=./following-sibling::*[contains(., "${label}")]`) })
@@ -348,7 +361,7 @@ async function handleCheckbox(page, label, value, selector = null) {
       if (value === true  && !(await cb.isChecked())) await cb.check({ force: true });
       if (value === false &&  (await cb.isChecked())) await cb.uncheck({ force: true });
     },
-    // 5. JavaScript — find by label text, fall back to first attached checkbox.
+    // 6. JavaScript — find by label text, fall back to first attached checkbox.
     //    Dispatches both click and change events for React/Vue forms.
     async () => {
       const done = await page.evaluate((searchLabel, targetValue) => {

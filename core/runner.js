@@ -138,11 +138,11 @@ async function runDevice(config, credentials, outputDir, device, log) {
             await log(`  [skip] ${device}: ${entryPage.id}-${step.id} — ${err.message}`);
           }
         }
-        if (device === 'mobile') {
-          await captureHamburger(page, outputDir, seq, log);
-        }
         for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
           await prepareAndCapture(page, step, outputDir, seq, entryPage.id, device, log);
+          if (device === 'mobile' && step.captureHamburger) {
+            await captureHamburger(page, outputDir, seq, log);
+          }
         }
       }
     }
@@ -261,7 +261,13 @@ async function captureStep(page, step, outputDir, seq, pageId, device, log) {
   const filename = seq.next(`${pageId}-${step.id}`);
   const filepath  = path.join(outputDir, filename);
 
-  if (step.captureMode === 'viewport') {
+  if (step.captureMode === 'element') {
+    // Screenshot a single element — no scroll, no page.evaluate.
+    // Use this for forms showing validation errors where a POST might fire after the click.
+    const el = page.locator(step.selector).first();
+    await el.waitFor({ state: 'visible', timeout: 10000 });
+    await el.screenshot({ path: filepath });
+  } else if (step.captureMode === 'viewport') {
     const stepViewport = step[device]; // e.g. step.desktop or step.mobile
     if (stepViewport) await page.setViewportSize(stepViewport);
     await page.screenshot({ path: filepath, fullPage: false });
@@ -330,7 +336,7 @@ function countTotalCaptures(config) {
     total += enabledSteps(page, 'desktop').length;
     const mobileSteps = enabledSteps(page, 'mobile');
     total += mobileSteps.length;
-    if (page.includesEntry && mobileSteps.length > 0) total += 1; // hamburger
+    if (page.includesEntry && mobileSteps.some(s => s.captureHamburger)) total += 1; // hamburger
   }
   return total;
 }
