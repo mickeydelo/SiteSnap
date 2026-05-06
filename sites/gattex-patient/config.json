@@ -95,6 +95,114 @@
     },
 
     {
+      "id": "gut-check-questionnaire",
+      "label": "Gut Check Questionnaire",
+      "path": "/gut-check-questionnaire/",
+      "steps": [
+        {
+          "id": "screen-1-default",
+          "enabled": true,
+          "label": "Screen 1 — Default landing",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false
+        },
+        {
+          "id": "screen-2-adult-sbs",
+          "enabled": true,
+          "label": "Screen 2 — Adult with SBS diagnosis selected",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.begin-questionnaire" },
+            { "type": "click", "selector": "label.image-input:has(input[value='Adult'])" },
+            { "type": "click", "selector": "label:has(#AdultSBS)" }
+          ]
+        },
+        {
+          "id": "screen-3-symptoms",
+          "enabled": true,
+          "label": "Screen 3 — Symptoms (1 of 5)",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.next" },
+            { "type": "click", "selector": "label[for='AdultSymptoms-Malnutrition']" }
+          ]
+        },
+        {
+          "id": "screen-4-ps-volume",
+          "enabled": true,
+          "label": "Screen 4 — PS volume (2 of 5)",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.next" },
+            { "type": "input", "selector": "#AdultPSVolume", "value": "1000" }
+          ]
+        },
+        {
+          "id": "screen-5-activities",
+          "enabled": true,
+          "label": "Screen 5 — Activities (3 of 5)",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.next" },
+            { "type": "click", "selector": "label[for='AdultActivities-Hobbies']" }
+          ]
+        },
+        {
+          "id": "screen-6-complications",
+          "enabled": true,
+          "label": "Screen 6 — Complications (4 of 5)",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.next" },
+            { "type": "click", "selector": "section.gut-check-questionnaire label.custom-input" }
+          ]
+        },
+        {
+          "id": "screen-7-goals",
+          "enabled": true,
+          "label": "Screen 7 — Goals (5 of 5)",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.next" },
+            { "type": "click", "selector": "label[for='AdultSureGoals-Informed']" }
+          ]
+        },
+        {
+          "id": "screen-8-results",
+          "enabled": true,
+          "label": "Screen 8 — You're all set",
+          "captureMode": "element",
+          "selector": "section.gut-check-questionnaire",
+          "hideISI": true,
+          "includeMobile": false,
+          "actions": [
+            { "type": "click", "selector": "a.button.next, a.button.review, a.button.view-responses, a.button.view_responses" }
+          ]
+        }
+      ]
+    },
+
+    {
       "id": "sign-up",
       "label": "Sign Up",
       "path": "/sign-up/",

@@ -26,7 +26,7 @@ async function executeAction(page, action) {
   switch (action.type) {
     case 'acceptCookies': return acceptCookies(page);
     case 'click':         return action.selector ? clickBySelector(page, action.selector) : clickByText(page, action.text);
-    case 'input':         return fillInput(page, action.label, action.value);
+    case 'input':         return fillInput(page, action.label, action.value, action.selector);
     case 'select':        return selectOption(page, action.label, action.value);
     case 'checkbox':      return handleCheckbox(page, action.label, action.value, action.selector);
     default:
@@ -73,9 +73,30 @@ async function acceptCookies(page) {
 // ---------------------------------------------------------------------------
 
 async function clickBySelector(page, selector) {
-  const el = page.locator(selector).first();
-  await el.waitFor({ state: 'visible', timeout: 10000 });
-  await el.click();
+  // Primary: first in DOM — fast and works when the selector is unique.
+  // Short timeout so we fall through quickly in multi-instance wizard UIs
+  // where the first DOM match may be a hidden inactive step.
+  try {
+    const el = page.locator(selector).first();
+    await el.waitFor({ state: 'visible', timeout: 2000 });
+    await el.click();
+    return;
+  } catch { /* fall through to visible-filter */ }
+
+  // Fallback: filter to the currently visible match (e.g. one Next button per
+  // wizard step; only the active step's button is visible at a time).
+  const el = page.locator(selector).filter({ visible: true }).first();
+  try {
+    await el.waitFor({ state: 'visible', timeout: 10000 });
+    await el.click();
+  } catch (err) {
+    try {
+      const debugPath = `/tmp/sitesnap-click-debug-${Date.now()}.png`;
+      await page.screenshot({ path: debugPath, fullPage: false });
+      console.error(`[debug] clickBySelector("${selector}") failed — screenshot → ${debugPath}`);
+    } catch { /* best-effort */ }
+    throw err;
+  }
 }
 
 export async function clickByText(page, text) {
@@ -173,10 +194,18 @@ export async function clickByText(page, text) {
 // Input fill
 // ---------------------------------------------------------------------------
 
-async function fillInput(page, label, value) {
-  // Primary: Playwright label association (for/aria-labelledby)
+async function fillInput(page, label, value, selector = null) {
+  // Fast path: explicit CSS selector bypasses all label-matching overhead.
+  if (selector) {
+    const el = page.locator(selector).first();
+    await el.waitFor({ state: 'visible', timeout: 5000 });
+    await el.fill(value);
+    return;
+  }
+
+  // Primary: Playwright label association — 3 s cap so a missing label fails fast.
   try {
-    await page.getByLabel(label, { exact: false }).first().fill(value);
+    await page.getByLabel(label, { exact: false }).first().fill(value, { timeout: 3000 });
     return;
   } catch {
     // fallback
@@ -184,7 +213,7 @@ async function fillInput(page, label, value) {
 
   // Secondary: match placeholder text
   try {
-    await page.getByPlaceholder(label, { exact: false }).first().fill(value);
+    await page.getByPlaceholder(label, { exact: false }).first().fill(value, { timeout: 5000 });
     return;
   } catch {
     // fallback

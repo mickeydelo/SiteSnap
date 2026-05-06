@@ -253,18 +253,28 @@ async function captureExternal(page, config, pageCfg, step, outputDir, seq, devi
 // Returns true if the step was skipped (so the caller can re-navigate before the next step).
 async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log) {
   try {
+    // Hide ISI before actions so the floating tray doesn't intercept clicks.
+    if (step.hideISI) {
+      await hideISITray(page);
+    }
     if (step.actions?.length) {
       await executeActions(page, step.actions);
     }
     if (step.waitFor) {
       await waitForCondition(page, step.waitFor);
     }
+    // Re-apply after actions in case a JS re-render brought it back.
     if (step.hideISI) {
       await hideISITray(page);
     }
     await captureStep(page, step, outputDir, seq, pageId, device, log);
     return false;
   } catch (err) {
+    try {
+      const debugPath = `/tmp/sitesnap-step-fail-${pageId}-${step.id}-${Date.now()}.png`;
+      await page.screenshot({ path: debugPath, fullPage: false });
+      await log(`  [debug] screenshot → ${debugPath}`);
+    } catch { /* best-effort */ }
     await log(`  [skip] ${device}: ${pageId}-${step.id} — ${err.message}`);
     return true;
   }

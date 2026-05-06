@@ -132,6 +132,78 @@ and triggers a Playwright run that produces a timestamped ZIP with `desktop/` an
 - The runner detects this via the `prevSkipped` flag: if a step was skipped, it re-navigates to the page URL before the next step runs — even if the POST lands back on the same URL.
 - Example: sign-up validation-errors step (submit empty form) → page navigates → runner re-navigates to `/sign-up/` → filled-form step runs cleanly.
 
+### Multi-step wizard / questionnaire pages (e.g. Gattex Gut Check)
+
+**Pattern:** Each step of the wizard is a separate capture in the config. Steps are cumulative — each step's `actions` continue from where the previous step left off (they do NOT re-navigate). The first step has no actions (landing state). Each subsequent step clicks "Next" and makes a selection, then captures.
+
+**`captureMode: "element"`** with a `selector` pointing to the questionnaire container (e.g. `section.gut-check-questionnaire`) is the right choice — it screenshots only the section at its natural height, not the full page.
+
+**`hideISI: true` on every step** — the floating ISI tray intercepts clicks if it's not hidden. The runner hides it BEFORE executing actions (not just before the screenshot).
+
+**The cascade failure trap:** If any step fails, `prevSkipped = true`, and the runner re-navigates to the page URL before the next step. This resets the wizard to screen 1. Every subsequent step then fails because it assumes mid-questionnaire state. Fix the earliest failing step — don't debug later steps until the chain is unbroken.
+
+**`a.button.next` appears multiple times in the DOM** — one per wizard screen. Only the active screen's button is visible. `clickBySelector` uses a two-strategy approach:
+1. Try `.first()` with 2 s timeout (fast path — works when the element is unique or the first is visible)
+2. Fallback to `.filter({ visible: true })` with 10 s timeout (handles wizard UIs with multiple hidden instances)
+
+**Conditional fields:** Some wizard screens show/hide inputs based on earlier selections. Never try to fill a textarea or secondary input unless you've verified it's visible for the chosen path. Example: the Gattex goals screen shows a textarea only when "NotSure" is selected — selecting any other radio hides it. Always pick a path that avoids conditional complexity unless you specifically need to capture that state.
+
+**Last-screen button selector:** The final step of a wizard often replaces "Next" with a different CTA ("View Responses", "See Results", "Review", etc.). Use a multi-selector to cover variations: `"a.button.next, a.button.review, a.button.view-responses"`.
+
+**Discovering the real selectors:** If original selectors fail, run an inline diagnostic script with playwright-core that navigates through each screen and dumps `document.body.innerHTML` at each step. The questionnaire branch matters — different entry paths (Adult vs Pediatric, confirmed SBS vs unsure) show completely different screens and selectors.
+
+**`href=""` anchors + `<base href="/">`:** Some sites use `<a href="">` for wizard buttons. Combined with `<base href="/">`, this resolves to the site root — a full navigation. Playwright's real `.click()` fires this navigation. `dispatchEvent('click')` has `isTrusted: false`, which may be blocked by the site's JS event handlers (no questionnaire advance + navigation to root). Always use real Playwright `.click()`, and use `hideISI` to prevent the ISI tray from blocking the click target.
+
+**Config example — wizard page:**
+```json
+{
+  "id": "gut-check-questionnaire",
+  "label": "Gut Check Questionnaire",
+  "path": "/gut-check-questionnaire/",
+  "steps": [
+    {
+      "id": "screen-1-default",
+      "enabled": true,
+      "captureMode": "element",
+      "selector": "section.gut-check-questionnaire",
+      "hideISI": true,
+      "includeMobile": false
+    },
+    {
+      "id": "screen-2-adult-sbs",
+      "enabled": true,
+      "captureMode": "element",
+      "selector": "section.gut-check-questionnaire",
+      "hideISI": true,
+      "includeMobile": false,
+      "actions": [
+        { "type": "click", "selector": "a.button.begin-questionnaire" },
+        { "type": "click", "selector": "label.image-input:has(input[value='Adult'])" },
+        { "type": "click", "selector": "label:has(#AdultSBS)" }
+      ]
+    },
+    {
+      "id": "screen-3-symptoms",
+      "enabled": true,
+      "captureMode": "element",
+      "selector": "section.gut-check-questionnaire",
+      "hideISI": true,
+      "includeMobile": false,
+      "actions": [
+        { "type": "click", "selector": "a.button.next" },
+        { "type": "click", "selector": "label[for='AdultSymptoms-Malnutrition']" }
+      ]
+    }
+  ]
+}
+```
+
+**Debugging a failing wizard step:**
+1. Check `/tmp/sitesnap-step-fail-<page>-<step>-<ts>.png` — shows what the page looked like when the step errored.
+2. Check `/tmp/sitesnap-click-debug-<ts>.png` — saved by `clickBySelector` right before throwing; shows what was on screen at the moment of click failure.
+3. Look at the error message: "waiting for locator('X') to be visible" means the element exists but is hidden — either it's the wrong path (conditional field) or the previous step didn't advance the wizard.
+4. If the debug screenshot shows the wizard landing page, the cascade failure trap has been triggered — fix the step before this one.
+
 ---
 
 ## Execution flow (runner.js)
