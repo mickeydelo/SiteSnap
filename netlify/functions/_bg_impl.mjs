@@ -1,10 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { jobsStore, screenshotsStore, zipsStore } from './_blobs.mjs';
-// core/runner.js is converted to CJS by esbuild (via included_files processing).
-// ESM named imports from CJS modules don't work in Node — must use default import.
-import runnerPkg from '../../core/runner.js';
-const { run } = runnerPkg;
+import { run } from '../../core/runner.js';
 
 const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   ? path.join(process.env.LAMBDA_TASK_ROOT, 'sites')
