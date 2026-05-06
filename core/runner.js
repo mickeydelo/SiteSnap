@@ -73,8 +73,9 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
   await log('Packaging…');
   const zipPath = path.join(outBase, `run-${timestamp}.zip`);
   await zipDirectory(runDir, zipPath);
-  fs.rmSync(runDir, { recursive: true });
 
+  // runDir is intentionally kept so thumbnails remain serveable after the run.
+  // Callers that manage their own storage (e.g. Netlify /tmp) clean it up themselves.
   return zipPath;
 }
 

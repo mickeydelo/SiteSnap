@@ -83,6 +83,7 @@ export const handler = async (event) => {
     await zips.set(jobId, zipBuffer, { metadata: { contentType: 'application/zip' } });
     console.log('[bg] ZIP uploaded to Blobs');
     fs.unlinkSync(zipPath);
+    try { fs.rmSync(zipPath.replace(/\.zip$/, ''), { recursive: true, force: true }); } catch { /* best effort */ }
 
     jobState.status = 'done';
     await jobs.setJSON(jobId, { ...jobState });
