@@ -8,9 +8,11 @@ export async function captureScreenshot(page, filepath, { fullPage = true, after
     // and fails on tall pages in Lambda/mobile environments.
     const viewport   = page.viewportSize();
     const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    await page.setViewportSize({ width: viewport.width, height: fullHeight });
+    // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
+    const safeHeight = Math.min(fullHeight, 15000);
+    await page.setViewportSize({ width: viewport.width, height: safeHeight });
     await page.screenshot({ path: filepath, fullPage: false });
-    await page.setViewportSize(viewport);
+    await page.setViewportSize(viewport); // restore
   } else {
     await page.screenshot({ path: filepath, fullPage: false });
   }

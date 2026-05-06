@@ -150,6 +150,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
           }
         }
         for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
+          if (page.isClosed()) { await log(`  [skip] ${device}: browser closed mid-run`); break; }
           await prepareAndCapture(page, step, outputDir, seq, entryPage.id, device, log);
           if (device === 'mobile' && step.captureHamburger) {
             await captureHamburger(page, outputDir, seq, log);
@@ -162,6 +163,7 @@ async function runDevice(config, credentials, outputDir, device, log) {
     for (const pageCfg of config.pages) {
       if (pageCfg.includesEntry) continue; // already handled above
       if (pageCfg.enabled === false) continue;
+      if (page.isClosed()) { await log(`  [skip] ${device}: browser closed — skipping remaining pages`); break; }
       const steps = enabledSteps(pageCfg, device);
       if (!steps.length) continue;
 
@@ -336,7 +338,7 @@ async function captureHamburger(page, outputDir, seq, log) {
 }
 
 async function navigate(page, url) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
   await waitForNetworkIdle(page);
 }
 

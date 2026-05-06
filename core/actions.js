@@ -59,8 +59,7 @@ async function acceptCookies(page) {
       const el = page.locator(sel).first();
       if (await el.isVisible({ timeout: 2000 })) {
         await el.click();
-        // Give the page time to animate the banner out and render what's next
-        await page.waitForTimeout(900);
+        await page.waitForTimeout(400);
         return;
       }
     } catch {

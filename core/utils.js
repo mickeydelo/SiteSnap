@@ -4,7 +4,7 @@
  * @param {import('playwright').Page} page
  * @param {number} timeout ms
  */
-export async function waitForNetworkIdle(page, timeout = 1500) {
+export async function waitForNetworkIdle(page, timeout = 1000) {
   try {
     await page.waitForLoadState('networkidle', { timeout });
   } catch {
