@@ -60,11 +60,19 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
   fs.mkdirSync(mobileDir,  { recursive: true });
 
   try {
-    await log('[Desktop + Mobile — running in parallel]');
-    await Promise.all([
-      runDevice(config, credentials, desktopDir, 'desktop', log),
-      runDevice(config, credentials, mobileDir,  'mobile',  log),
-    ]);
+    const onLambda = !!(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    if (onLambda) {
+      // One Chromium at a time on Lambda — two simultaneous instances causes OOM crashes.
+      await log('[Desktop → Mobile — running sequentially on Lambda]');
+      await runDevice(config, credentials, desktopDir, 'desktop', log);
+      await runDevice(config, credentials, mobileDir,  'mobile',  log);
+    } else {
+      await log('[Desktop + Mobile — running in parallel]');
+      await Promise.all([
+        runDevice(config, credentials, desktopDir, 'desktop', log),
+        runDevice(config, credentials, mobileDir,  'mobile',  log),
+      ]);
+    }
   } catch (err) {
     fs.rmSync(runDir, { recursive: true, force: true });
     throw err;
@@ -84,7 +92,9 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
 // ---------------------------------------------------------------------------
 
 async function runDevice(config, credentials, outputDir, device, log) {
+  await log(`[${device}] Launching browser…`);
   const { browser, page } = await launchContext(DEFAULTS[device], credentials);
+  await log(`[${device}] Browser ready.`);
   const seq = new Sequence();
 
   try {
