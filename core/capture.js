@@ -1,18 +1,30 @@
+const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
+
 export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
   if (fullPage) {
-    await scrollForLazyLoad(page);
-    if (afterScroll) await afterScroll();
-
-    // Expand viewport to full document height and shoot a single viewport screenshot.
-    // This is faster and more reliable than fullPage: true, which composites tiles
-    // and fails on tall pages in Lambda/mobile environments.
-    const viewport   = page.viewportSize();
-    const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
-    const safeHeight = Math.min(fullHeight, 15000);
-    await page.setViewportSize({ width: viewport.width, height: safeHeight });
-    await page.screenshot({ path: filepath, fullPage: false });
-    await page.setViewportSize(viewport); // restore
+    if (ON_LAMBDA) {
+      // On Lambda: skip the lazy-load scroll — loading all images into Chromium memory
+      // before a full-page capture reliably OOMs the browser. Use Playwright's native
+      // fullPage (CDP captureBeyondViewport) which scrolls in smaller chunks internally.
+      if (afterScroll) await afterScroll();
+      try {
+        await page.screenshot({ path: filepath, fullPage: true });
+      } catch {
+        // Last resort — capture whatever is in the current viewport.
+        await page.screenshot({ path: filepath, fullPage: false });
+      }
+    } else {
+      // Local: pre-scroll to trigger lazy loading, then expand viewport for a single capture.
+      await scrollForLazyLoad(page);
+      if (afterScroll) await afterScroll();
+      const viewport   = page.viewportSize();
+      const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
+      const safeHeight = Math.min(fullHeight, 15000);
+      await page.setViewportSize({ width: viewport.width, height: safeHeight });
+      await page.screenshot({ path: filepath, fullPage: false });
+      await page.setViewportSize(viewport); // restore
+    }
   } else {
     await page.screenshot({ path: filepath, fullPage: false });
   }
