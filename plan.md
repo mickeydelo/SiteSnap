@@ -293,6 +293,22 @@ deploys it automatically. No other changes required.
 
 ---
 
+### `included_files` copies files — esbuild does NOT transform them
+Files listed in `included_files` (e.g. `core/**`) are deployed as-is to Lambda.
+esbuild does NOT inline, transpile, or reformat them. Any assumption about esbuild
+converting `core/*.js` from ESM to CJS is wrong. They arrive on Lambda exactly as
+they exist in the repo.
+
+Consequence: if `_bg_impl.mjs` imports from `core/runner.js` using a default import
+(`import runnerPkg from '...'`) expecting CJS module.exports behaviour, it fails —
+because `runner.js` is pure ESM with only named exports. Always use named imports:
+```js
+import { run } from '../../core/runner.js';   // ✓ correct
+import runnerPkg from '../../core/runner.js'; // ✗ wrong — no default export
+```
+
+---
+
 ### Background function MUST be `.js`, not `.mjs`
 The project root has `"type": "module"`. Netlify's background function runtime generates
 a CJS loader (`api-run-background.js`) that calls `require()` on the function file.
@@ -315,6 +331,16 @@ simultaneously. On Lambda this causes memory pressure that kills one browser mid
 all its remaining captures are silently skipped and packaging completes with partial results.
 **Fix:** Detect `process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME` and run passes
 sequentially there. Local stays parallel for speed.
+
+### Mobile `deviceScaleFactor: 2` OOMs Lambda on full-page captures
+At 2x scale, `setViewportSize` to a tall page (e.g. 390×6000) makes Chromium allocate a
+780×12000 render buffer. After `scrollForLazyLoad` has already loaded all images into memory,
+this spikes past Lambda's limit and kills the browser — `Target page, context or browser has
+been closed` at `page.setViewportSize`. Symptom: run stops at `04_nav-open-mobile.png` (last
+successful capture before the first full-page step), then `browser closed — skipping remaining pages`.
+
+**Fix:** Use `deviceScaleFactor: 1` on Lambda. `browser.js` checks
+`process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY`. Local runs keep 2x.
 
 ### Full-page viewport expansion can OOM Lambda
 `captureScreenshot` expands viewport to `document.scrollHeight` before shooting. On very
