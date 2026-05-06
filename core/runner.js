@@ -42,7 +42,7 @@ class Sequence {
  *                                      to write to /tmp instead of siteDir/output)
  * @returns {string} Absolute path to the output ZIP
  */
-export async function run(siteDir, credentials, configOverride = null, onProgress = null, outputBaseDir = null) {
+export async function run(siteDir, credentials, configOverride = null, onProgress = null, outputBaseDir = null, executablePath = null) {
   const config = configOverride
     ?? JSON.parse(fs.readFileSync(path.join(siteDir, 'config.json'), 'utf8'));
 
@@ -64,13 +64,13 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
     if (onLambda) {
       // One Chromium at a time on Lambda — two simultaneous instances causes OOM crashes.
       await log('[Desktop → Mobile — running sequentially on Lambda]');
-      await runDevice(config, credentials, desktopDir, 'desktop', log);
-      await runDevice(config, credentials, mobileDir,  'mobile',  log);
+      await runDevice(config, credentials, desktopDir, 'desktop', log, executablePath);
+      await runDevice(config, credentials, mobileDir,  'mobile',  log, executablePath);
     } else {
       await log('[Desktop + Mobile — running in parallel]');
       await Promise.all([
-        runDevice(config, credentials, desktopDir, 'desktop', log),
-        runDevice(config, credentials, mobileDir,  'mobile',  log),
+        runDevice(config, credentials, desktopDir, 'desktop', log, executablePath),
+        runDevice(config, credentials, mobileDir,  'mobile',  log, executablePath),
       ]);
     }
   } catch (err) {
@@ -91,9 +91,9 @@ export async function run(siteDir, credentials, configOverride = null, onProgres
 // Device pass
 // ---------------------------------------------------------------------------
 
-async function runDevice(config, credentials, outputDir, device, log) {
+async function runDevice(config, credentials, outputDir, device, log, executablePath = null) {
   await log(`[${device}] Launching browser…`);
-  const { browser, page } = await launchContext(DEFAULTS[device], credentials);
+  const { browser, page } = await launchContext(DEFAULTS[device], credentials, executablePath);
   await log(`[${device}] Browser ready.`);
   const seq = new Sequence();
 

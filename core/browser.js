@@ -21,7 +21,7 @@ const MOBILE_UA =
  * @param {{ username: string, password: string } | null} credentials
  * @returns {{ browser, context, page }}
  */
-export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = null) {
+export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = null, cachedExecutablePath = null) {
   const isMobile = viewport.width <= 768;
 
   let executablePath = undefined; // undefined = playwright-core auto-discovers locally
@@ -30,12 +30,11 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
   let slowMo         = 0;
 
   if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    // Lambda / Netlify Functions runtime: use @sparticuz/chromium.
-    // Add --incognito so each browser launch gets a guaranteed clean profile
-    // with no shared cookies, cache, or session storage between device passes.
     const sparticuz = (await import('@sparticuz/chromium')).default;
-    executablePath  = await sparticuz.executablePath();
-    args            = sparticuz.args;
+    // Use pre-resolved path if the background function extracted it early;
+    // otherwise call executablePath() now (cold-start case with no pre-warming).
+    executablePath = cachedExecutablePath ?? await sparticuz.executablePath();
+    args           = sparticuz.args;
   } else {
     // Local: playwright-core finds the playwright-installed chromium automatically
     const debug = process.env.SITESNAP_DEBUG === '1';

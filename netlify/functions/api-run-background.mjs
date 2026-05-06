@@ -7,6 +7,13 @@ const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   ? path.join(process.env.LAMBDA_TASK_ROOT, 'sites')
   : path.join(process.cwd(), 'sites');
 
+// Kick off Chromium extraction at module load time so it runs in parallel
+// with request parsing and Blobs setup instead of blocking browser launch.
+// On a warm container /tmp/chromium already exists and this resolves instantly.
+const chromiumReady = process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? import('@sparticuz/chromium').then(m => m.default.executablePath()).catch(() => null)
+  : null;
+
 export const handler = async (event) => {
   let body;
   try {
@@ -69,13 +76,15 @@ export const handler = async (event) => {
       }
     };
 
-    const credentials = requiresCredentials ? { username, password } : null;
+    const credentials    = requiresCredentials ? { username, password } : null;
+    const executablePath = await chromiumReady; // already resolved if warm; waits if still extracting
     const zipPath = await run(
       siteDir,
       credentials,
       configOverride ?? null,
       onProgress,
       '/tmp',
+      executablePath,
     );
 
     const zipBuffer = fs.readFileSync(zipPath);
