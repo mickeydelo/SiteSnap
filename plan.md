@@ -207,6 +207,90 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 
 ---
 
+## Netlify pitfalls & hard-won lessons
+
+### Background function MUST be `.js`, not `.mjs`
+The project root has `"type": "module"`. Netlify's background function runtime generates
+a CJS loader (`api-run-background.js`) that calls `require()` on the function file.
+`require()` cannot load `.mjs` files (always ESM) **or** `.js` files in a `"type": "module"`
+project → `ERR_REQUIRE_ESM` at Lambda init, function never runs, job state never written.
+
+**Fix applied:** Add `netlify/functions/package.json` with `{ "type": "commonjs" }` and name
+the background function `api-run-background.js`. esbuild then bundles it to a CJS output the
+loader can `require()`. All other `.mjs` functions are unaffected (`.mjs` is always ESM
+regardless of `package.json`).
+
+### Never put heavy I/O at module level in a background function
+Moving `sparticuz.executablePath()` to module-level (outside the handler) to pre-warm
+Chromium caused the Lambda container to spend its cold-start doing disk I/O before the
+handler could run, delaying or preventing the initial Blobs write. Keep it inside the handler.
+
+### Two Chromium instances on Lambda = OOM crash
+`Promise.all([runDevice(desktop), runDevice(mobile)])` launches two Chromium processes
+simultaneously. On Lambda this causes memory pressure that kills one browser mid-run —
+all its remaining captures are silently skipped and packaging completes with partial results.
+**Fix:** Detect `process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME` and run passes
+sequentially there. Local stays parallel for speed.
+
+### Full-page viewport expansion can OOM Lambda
+`captureScreenshot` expands viewport to `document.scrollHeight` before shooting. On very
+tall pages (10 000 px+) this causes Chromium to OOM-crash on Lambda. The remaining captures
+all throw "Target page, context or browser has been closed", are individually caught as skips,
+and the run silently packages with missing screenshots.
+**Fix:** Cap `safeHeight = Math.min(fullHeight, 15000)` in `capture.js`.
+
+### Add `page.isClosed()` fast-fail after browser crashes
+When Chromium dies mid-run every subsequent operation throws "Target page, context or browser
+has been closed". Each is caught individually as a [skip], wasting time on 5-6 doomed
+navigations. Add `if (page.isClosed()) break` in the authenticated-steps and remaining-pages
+loops so the pass ends immediately with one clear log line.
+
+### Status endpoint must ALWAYS return `Content-Type: application/json`
+If the endpoint returns a bare `404` (no Content-Type header), the client's `contentType.includes('application/json')` check fails, it enters the non-JSON error path, and after 30 s shows a fatal error overlay. During Lambda cold-start the job hasn't been written yet — return `{ status: 'pending' }` with a 200 instead of a 404. The client keeps polling silently.
+
+### Polling "pending" must have its own timeout
+The `status: 'pending'` response keeps the client polling but has no upper bound. If the
+background function crashes before writing job state (e.g., bad Blobs credentials), the UI
+spins forever. Add a 90-second timeout on the pending state that surfaces a clear error.
+
+### Run folder must not be deleted before thumbnails are served
+`runner.js` originally deleted the run folder immediately after zipping. The last screenshot
+fires `onProgress`, the Promise.all resolves, zipping + deletion happen — all before the
+client's next poll arrives. The final thumbnail (index 18) 404s.
+**Fix:** Remove `fs.rmSync(runDir)` from `runner.js`. The Netlify background function cleans up
+`/tmp` itself after uploading to Blobs. Locally the folder stays alongside the ZIP.
+
+### No-credentials sites need special handling in the background function
+The background function originally bailed with `if (!username || !password) return` before
+writing job state. GATTEX (`requiresCredentials: false`) always sends empty strings, so the
+function silently exited and the status poll got 404 forever.
+**Fix:** Read `metadata.json` inside the background function to decide if credentials are
+required, same as the local Express server does.
+
+### `run()` returns a plain string, not `{ zipPath, captureDir }`
+The background function was destructuring `const { zipPath, captureDir } = await run(...)`.
+`run()` returns a plain string. Both were `undefined`, causing `fs.readFileSync(undefined)`
+to throw.
+
+### Site thumbnail images need their own Netlify function
+`/site-image/:siteId` only exists on the local Express server. On Netlify, images live inside
+`sites/` which is bundled with functions, not served as static files. A dedicated
+`api-site-image.mjs` function reads the PNG and returns it `base64`-encoded.
+The path parameter from the redirect may not appear in `queryStringParameters` — always fall
+back to parsing `event.path.split('/').pop()` (same pattern as `api-status.mjs` uses for jobId).
+
+### Speed knobs for Netlify
+- `waitForNetworkIdle` default: 1 500 ms → 1 000 ms (saves ~500 ms per navigation)
+- Cookie banner post-click wait: 900 ms → 400 ms (animations are disabled globally)
+- Navigation timeout: 30 000 ms → 20 000 ms
+- Block pharma/ad networks in `context.route()`: google-analytics, googletagmanager,
+  doubleclick, adobe omtrdc, hotjar, segment, newrelic, optimizely, veeva, brightcove,
+  coveo, eloqua, marketo, pardot, facebook pixel, linkedin, twitter pixel — these keep
+  the network perpetually busy and slow down every `waitForNetworkIdle` call
+- Sequential execution saves memory; Chromium warm-starts (~3-5 s) vs cold-starts (~15-30 s)
+
+---
+
 ## File map
 
 | File | Role |
