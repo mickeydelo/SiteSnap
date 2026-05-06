@@ -7,7 +7,9 @@
   # sites/** → site configs; core/** + _bg_impl.mjs → needed by the background function
   # at runtime (the CJS shim loads them via dynamic import, so esbuild doesn't inline them).
   included_files = ["sites/**", "core/**", "netlify/functions/_blobs.mjs", "netlify/functions/_bg_impl.mjs"]
-  external_node_modules = ["@sparticuz/chromium", "playwright-core"]
+  # _bg_impl.mjs is loaded at runtime (not bundled), so ALL packages it uses
+  # transitively must be deployed as real node_modules, not inlined by esbuild.
+  external_node_modules = ["@sparticuz/chromium", "playwright-core", "@netlify/blobs", "archiver"]
 
 # Extra memory + max timeout for the Playwright background worker
 [functions.api-run-background]
