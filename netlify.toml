@@ -21,6 +21,12 @@
 # ---------------------------------------------------------------------------
 
 [[redirects]]
+  from   = "/site-image/:siteId"
+  to     = "/.netlify/functions/api-site-image?siteId=:siteId"
+  status = 200
+  force  = true
+
+[[redirects]]
   from   = "/api/sites"
   to     = "/.netlify/functions/api-sites"
   status = 200

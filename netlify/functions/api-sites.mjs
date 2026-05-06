@@ -21,7 +21,8 @@ export const handler = async () => {
         name = meta.siteName || name;
         requiresCredentials = meta.requiresCredentials !== false;
       } catch { /* fall back to dir name */ }
-      return { id: d.name, name, requiresCredentials };
+      const hasImage = fs.existsSync(path.join(SITES_DIR, d.name, 'images', `${d.name}.png`));
+      return { id: d.name, name, requiresCredentials, imageUrl: hasImage ? `/site-image/${d.name}` : null };
     });
 
   return {
