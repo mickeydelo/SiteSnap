@@ -281,6 +281,18 @@ SITESNAP_DEBUG=1 node index.js   # headed Chromium + slowMo for debugging
 
 ## Netlify pitfalls & hard-won lessons
 
+### `core/package.json` must declare `"type": "module"`
+The root `package.json` has `"type": "module"`, but it is NOT deployed to Lambda — only files
+listed in `included_files` are. On Lambda, `_bg_impl.mjs` imports `../../core/runner.js`. Node
+looks for the nearest `package.json` above `core/runner.js` to decide ESM vs CJS. Without one,
+it defaults to CJS, the CJS parser hits `import path from 'path'`, and the function crashes with
+`SyntaxError: Cannot use import statement outside a module`.
+
+**Fix:** `core/package.json` contains `{ "type": "module" }`. The `core/**` glob in `included_files`
+deploys it automatically. No other changes required.
+
+---
+
 ### Background function MUST be `.js`, not `.mjs`
 The project root has `"type": "module"`. Netlify's background function runtime generates
 a CJS loader (`api-run-background.js`) that calls `require()` on the function file.
