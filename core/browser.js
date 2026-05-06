@@ -44,10 +44,14 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
 
   const browser = await chromium.launch({ executablePath, args, headless, slowMo });
 
+  // On Lambda, mobile full-page captures expand the viewport to document height.
+  // At 2x scale that render buffer is 4× larger and OOM-crashes Chromium.
+  // Use 1x on Lambda; keep 2x locally for retina-quality screenshots.
+  const onLambda = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
   const context = await browser.newContext({
     viewport,
     userAgent: isMobile ? MOBILE_UA : DESKTOP_UA,
-    deviceScaleFactor: isMobile ? 2 : 1,
+    deviceScaleFactor: isMobile && !onLambda ? 2 : 1,
     ignoreHTTPSErrors: true,
     storageState: { cookies: [], origins: [] },
     ...(credentials && {
