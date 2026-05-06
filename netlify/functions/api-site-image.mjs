@@ -6,7 +6,8 @@ const SITES_DIR = process.env.LAMBDA_TASK_ROOT
   : path.join(process.cwd(), 'sites');
 
 export const handler = async (event) => {
-  const siteId  = event.queryStringParameters?.siteId;
+  const siteId = event.queryStringParameters?.siteId
+    || event.path?.split('/').filter(Boolean).pop();
   if (!siteId) return { statusCode: 400, body: 'siteId required' };
 
   const imgPath = path.join(SITES_DIR, siteId, 'images', `${siteId}.png`);
