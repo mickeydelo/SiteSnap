@@ -2,29 +2,21 @@ const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY
 
 export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
   if (fullPage) {
-    if (ON_LAMBDA) {
-      // On Lambda: skip the lazy-load scroll — loading all images into Chromium memory
-      // before a full-page capture reliably OOMs the browser. Use Playwright's native
-      // fullPage (CDP captureBeyondViewport) which scrolls in smaller chunks internally.
-      if (afterScroll) await afterScroll();
-      try {
-        await page.screenshot({ path: filepath, fullPage: true });
-      } catch {
-        // Last resort — capture whatever is in the current viewport.
-        await page.screenshot({ path: filepath, fullPage: false });
-      }
-    } else {
-      // Local: pre-scroll to trigger lazy loading, then expand viewport for a single capture.
-      await scrollForLazyLoad(page);
-      if (afterScroll) await afterScroll();
-      const viewport   = page.viewportSize();
-      const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
-      const safeHeight = Math.min(fullHeight, 15000);
-      await page.setViewportSize({ width: viewport.width, height: safeHeight });
-      await page.screenshot({ path: filepath, fullPage: false });
-      await page.setViewportSize(viewport); // restore
-    }
+    // On Lambda: skip the lazy-load scroll. scrollForLazyLoad decodes every image into
+    // Chromium memory; the subsequent setViewportSize then OOM-crashes the browser.
+    // Without the pre-scroll there is no memory spike and setViewportSize works fine.
+    // Trade-off: lazy-loaded images below the fold won't appear in Lambda captures.
+    // NOTE: page.screenshot({ fullPage: true }) does NOT work with @sparticuz/chromium —
+    // it silently returns a viewport-sized image, so we always use the expand-viewport path.
+    if (!ON_LAMBDA) await scrollForLazyLoad(page);
+    if (afterScroll) await afterScroll();
+    const viewport   = page.viewportSize();
+    const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    // Cap at 15000px — taller viewports can OOM-crash Chromium on Lambda.
+    const safeHeight = Math.min(fullHeight, 15000);
+    await page.setViewportSize({ width: viewport.width, height: safeHeight });
+    await page.screenshot({ path: filepath, fullPage: false });
+    await page.setViewportSize(viewport); // restore
   } else {
     await page.screenshot({ path: filepath, fullPage: false });
   }
