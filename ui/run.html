@@ -763,7 +763,7 @@
           // 'pending' = background function started but hasn't written to Blobs yet.
           // Give it up to 90s; after that something is genuinely wrong.
           if (job.status === 'pending') {
-            document.getElementById('ov-status').textContent = job.lastLog || 'Waiting for Lambda to start…';
+            document.getElementById('ov-status').textContent = job.lastLog || 'Warming up…';
             if (Date.now() - state.pollStarted > 90000) {
               stopPoll();
               overlayError('Lambda did not start within 90s. Check Netlify function logs.');

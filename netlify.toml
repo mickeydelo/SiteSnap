@@ -13,6 +13,7 @@
 
 # Extra memory + max timeout for the Playwright background worker
 [functions.api-run-background]
+  node_bundler = "nft"
   memory  = 3008
   timeout = 900
 

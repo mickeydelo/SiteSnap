@@ -28,7 +28,7 @@ export const handler = async (event) => {
         status:  'pending',
         total:   0,
         entries: [],
-        lastLog: 'Waiting for Lambda to start…',
+        lastLog: 'Warming up…',
         error:   null,
       }),
     };
