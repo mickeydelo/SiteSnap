@@ -17,7 +17,7 @@ SiteSnap is a local-first screenshot studio for capturing complete responsive pa
 - Homepage cookie notice, clean viewport, and full page.
 - Fund-page full-page baseline.
 - Hero share classes: I/NHMRX, A/NHMAX, C/NHCCX, and R6/NHMFX.
-- Performance: average annual total returns (quarterly and monthly), calendar year returns, Morningstar Medalist Ratings, and Morningstar Ratings.
+- Performance: average annual total returns (quarterly and monthly), calendar year returns, Morningstar Medalist Ratings, and Morningstar Ratings. These default to exact whole-section element captures, including the heading, tabs, active content, and disclosures while excluding fixed site chrome.
 - Taxable Equivalent Yield modal with editable filing status and annual income.
 - Distributions overview and Since inception distribution-history modal.
 - Characteristics: maturity breakdown, top states, sector allocation, credit quality, and maturity-details modal.

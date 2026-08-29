@@ -108,7 +108,17 @@ async function runDevice(config, credentials, outputDir, device, log) {
           await executeActions(page, step.actions, log);
           if (step.waitFor) await waitForCondition(page, step.waitFor);
           if (step.delayMs) await page.waitForTimeout(Number(step.delayMs));
-          await captureStep(page, step, outputDir, sequence, pageConfig.id, device, deviceConfig, log);
+          await captureStep(
+            page,
+            step,
+            outputDir,
+            sequence,
+            pageConfig.id,
+            device,
+            deviceConfig,
+            log,
+            pageConfig.elementHideSelectors,
+          );
         } catch (error) {
           dirty = true;
           const debugPath = path.join(outputDir, `debug_${sanitizeName(pageConfig.id)}_${sanitizeName(step.id)}.png`);
@@ -146,7 +156,17 @@ async function loadPage(page, url, pageConfig, log) {
   if (pageConfig.actions?.length) await executeActions(page, pageConfig.actions, log);
 }
 
-async function captureStep(page, step, outputDir, sequence, pageId, device, deviceConfig, log) {
+async function captureStep(
+  page,
+  step,
+  outputDir,
+  sequence,
+  pageId,
+  device,
+  deviceConfig,
+  log,
+  pageHideSelectors = [],
+) {
   const filename = sequence.next(`${pageId}-${step.id}`);
   const filepath = path.join(outputDir, filename);
   const baseViewport = deviceConfig.viewport;
@@ -160,7 +180,17 @@ async function captureStep(page, step, outputDir, sequence, pageId, device, devi
     if (!selector) throw new Error('Element capture requires a selector');
     const element = firstVisible(page, selector);
     await element.waitFor({ state: 'visible', timeout: 12000 });
-    await element.screenshot({ path: filepath, animations: 'disabled', caret: 'hide' });
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => document.activeElement?.blur?.()).catch(() => {});
+    await element.screenshot({
+      path: filepath,
+      animations: 'disabled',
+      caret: 'hide',
+      style: buildHideStyle([
+        ...toSelectorArray(pageHideSelectors),
+        ...toSelectorArray(step.hideSelectors),
+      ]),
+    });
   } else {
     await page.setViewportSize(stepViewport);
     try {
@@ -189,6 +219,16 @@ async function captureStep(page, step, outputDir, sequence, pageId, device, devi
     filename,
     filepath,
   });
+}
+
+function buildHideStyle(selectors) {
+  const safeSelectors = selectors.filter(selector => typeof selector === 'string' && selector.trim());
+  if (!safeSelectors.length) return undefined;
+  return `${safeSelectors.join(',\n')} { display: none !important; }`;
+}
+
+function toSelectorArray(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function resolveDeviceConfig(config, device) {
