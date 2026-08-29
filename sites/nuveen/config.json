@@ -332,62 +332,70 @@
           "group": "Characteristics",
           "enabled": true,
           "label": "Maturity breakdown in years",
-          "description": "Default maturity table and chart state.",
-          "captureMode": "viewport",
+          "description": "Complete Characteristics section with the maturity table and chart active.",
+          "captureMode": "element",
           "desktop": { "width": 1440, "height": 900 },
           "mobile": { "width": 390, "height": 844 },
-          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Maturity breakdown in years\"))",
+          "selector": "[data-component*=\"productSection\"]:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")) .nuv-tabbed-content__header",
           "focusOffset": -92,
           "includeMobile": true,
           "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
             { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")", "settle": "network-idle", "delayMs": 400 }
           ]
         },
         {
           "id": "characteristics-top-states",
           "group": "Characteristics",
-          "enabled": false,
+          "enabled": true,
           "label": "Top states",
-          "description": "Optional state-allocation table and map.",
-          "captureMode": "viewport",
+          "description": "Complete Characteristics section with the state-allocation table and map active.",
+          "captureMode": "element",
           "desktop": { "width": 1440, "height": 900 },
           "mobile": { "width": 390, "height": 844 },
-          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Top states\"))",
+          "selector": "[data-component*=\"productSection\"]:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")) .nuv-tabbed-content__header",
           "focusOffset": -92,
           "includeMobile": true,
           "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
             { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Top states\")", "settle": "network-idle", "delayMs": 700 }
           ]
         },
         {
           "id": "characteristics-sector",
           "group": "Characteristics",
-          "enabled": false,
+          "enabled": true,
           "label": "Sector allocation",
-          "description": "Optional sector-allocation table and chart.",
-          "captureMode": "viewport",
+          "description": "Complete Characteristics section with the sector-allocation table and chart active.",
+          "captureMode": "element",
           "desktop": { "width": 1440, "height": 900 },
           "mobile": { "width": 390, "height": 844 },
-          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Sector allocation\"))",
+          "selector": "[data-component*=\"productSection\"]:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")) .nuv-tabbed-content__header",
           "focusOffset": -92,
           "includeMobile": true,
           "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
             { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Sector allocation\")", "settle": "network-idle", "delayMs": 700 }
           ]
         },
         {
           "id": "characteristics-credit-quality",
           "group": "Characteristics",
-          "enabled": false,
+          "enabled": true,
           "label": "Credit quality",
-          "description": "Optional credit-quality distribution table and chart.",
-          "captureMode": "viewport",
+          "description": "Complete Characteristics section with the credit-quality table and chart active.",
+          "captureMode": "element",
           "desktop": { "width": 1440, "height": 900 },
           "mobile": { "width": 390, "height": 844 },
-          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Credit quality\"))",
+          "selector": "[data-component*=\"productSection\"]:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")) .nuv-tabbed-content__header",
           "focusOffset": -92,
           "includeMobile": true,
           "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
             { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Credit quality\")", "settle": "network-idle", "delayMs": 700 }
           ]
         },
@@ -409,6 +417,42 @@
           "waitFor": { "selector": "#maturity-breakdown-details.nuv-speed-bump--show, .nuv-speed-bump--show:has-text(\"Maturity breakdown details\")", "delayMs": 250 },
           "cleanupActions": [
             { "type": "click", "selector": "#maturity-breakdown-details .nuv-speed-bump__close-btn, .nuv-speed-bump--show .nuv-speed-bump__close-btn", "settle": false, "timeoutMs": 1200 }
+          ]
+        },
+        {
+          "id": "literature-fund-literature",
+          "group": "Literature",
+          "enabled": true,
+          "label": "Fund literature",
+          "description": "Complete Literature section with the fund document list active.",
+          "captureMode": "element",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "selector": "[data-component*=\"productSection\"]:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Prospectuses & reports\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Prospectuses & reports\")) .nuv-tabbed-content__header",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Fund literature\")", "settle": "network-idle", "delayMs": 700 }
+          ]
+        },
+        {
+          "id": "literature-prospectuses-reports",
+          "group": "Literature",
+          "enabled": true,
+          "label": "Prospectuses & reports",
+          "description": "Complete Literature section with prospectuses and reports active.",
+          "captureMode": "element",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "selector": "[data-component*=\"productSection\"]:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Prospectuses & reports\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Prospectuses & reports\")) .nuv-tabbed-content__header",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Prospectuses & reports\")", "settle": "network-idle", "delayMs": 700 }
           ]
         }
       ]

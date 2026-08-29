@@ -20,7 +20,8 @@ SiteSnap is a local-first screenshot studio for capturing complete responsive pa
 - Performance: average annual total returns (quarterly and monthly), calendar year returns, Morningstar Medalist Ratings, and Morningstar Ratings. These default to exact whole-section element captures, including the heading, tabs, active content, and disclosures while excluding fixed site chrome.
 - Taxable Equivalent Yield modal with editable filing status and annual income.
 - Distributions overview and Since inception distribution-history modal.
-- Characteristics: maturity breakdown, top states, sector allocation, credit quality, and maturity-details modal.
+- Characteristics: exact whole-section captures for maturity breakdown, top states, sector allocation, and credit quality, plus the maturity-details modal.
+- Literature: exact whole-section captures for Fund literature and Prospectuses & reports.
 
 ## Runtime
 
