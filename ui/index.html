@@ -1,217 +1,126 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SiteSnap</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SiteSnap · Capture studio</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    :root {
+      --ink: #142936;
+      --muted: #667984;
+      --line: #dbe4e8;
+      --paper: #f7faf9;
+      --white: #fff;
+      --lime: #77d64b;
+      --lime-dark: #47a82e;
+      --navy: #102a3a;
+    }
+    * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f4f5f7;
+      margin: 0;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 78% 8%, rgba(119,214,75,.18), transparent 32rem),
+        linear-gradient(145deg, #0d2534 0 42%, #eef4f2 42% 100%);
+      font: 14px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 2px 16px rgba(0,0,0,.10);
-      width: 100%;
-      max-width: 420px;
-      padding: 40px 36px 36px;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 32px;
-    }
-
-    .logo-text {
-      font-size: 20px;
-      font-weight: 700;
-      color: #111;
-      letter-spacing: -.3px;
-    }
-
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: #374151;
-      margin-bottom: 6px;
-    }
-
-    select, input[type="text"], input[type="password"] {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      font-size: 14px;
-      color: #111;
-      background: #fff;
-      -webkit-appearance: none;
-      outline: none;
-      transition: border-color .15s;
-    }
-
-    select {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 32px;
-    }
-
-    select:focus, input:focus {
-      border-color: #6366f1;
-      box-shadow: 0 0 0 3px rgba(99,102,241,.12);
-    }
-
-    input:disabled {
-      background: #f9fafb;
-      color: #9ca3af;
-      cursor: not-allowed;
-    }
-
-    .field-note {
-      font-size: 12px;
-      color: #9ca3af;
-      margin-top: 5px;
-    }
-
-    .field { margin-bottom: 18px; }
-
-    .btn {
-      width: 100%;
-      padding: 11px;
-      background: #6366f1;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 4px;
-      transition: background .15s;
-    }
-
-    .btn:hover:not(:disabled) { background: #4f46e5; }
-    .btn:disabled { opacity: .55; cursor: not-allowed; }
-
-    .err {
-      margin-top: 14px;
-      font-size: 13px;
-      color: #dc2626;
-      background: #fef2f2;
-      border: 1px solid #fecaca;
-      border-radius: 6px;
-      padding: 8px 12px;
-      display: none;
+    .shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 38px 0; }
+    .brand { display: flex; align-items: center; gap: 12px; color: white; margin-bottom: 66px; }
+    .brand-mark { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--lime); color: var(--navy); box-shadow: 0 10px 28px rgba(0,0,0,.18); }
+    .brand strong { font-size: 18px; letter-spacing: -.03em; }
+    .brand span { color: #a9bcc6; font-size: 12px; display: block; }
+    main { display: grid; grid-template-columns: .9fr 1.1fr; gap: 64px; align-items: center; }
+    .intro { color: white; }
+    .eyebrow { color: var(--lime); text-transform: uppercase; letter-spacing: .16em; font-weight: 800; font-size: 11px; }
+    h1 { font: 500 clamp(42px, 6vw, 72px)/.98 Georgia, "Times New Roman", serif; letter-spacing: -.05em; margin: 18px 0 22px; }
+    .intro p { color: #bfd0d8; font-size: 16px; max-width: 510px; }
+    .proof { display: flex; gap: 24px; margin-top: 34px; color: #e8f0f2; }
+    .proof div { border-left: 1px solid rgba(255,255,255,.2); padding-left: 14px; }
+    .proof strong { display: block; color: var(--lime); font-size: 18px; }
+    .proof small { color: #9eb3bd; }
+    .panel { background: rgba(255,255,255,.98); border: 1px solid rgba(255,255,255,.55); border-radius: 24px; padding: 22px; box-shadow: 0 28px 90px rgba(6,22,31,.28); }
+    .panel-head { display: flex; align-items: end; justify-content: space-between; padding: 8px 8px 18px; }
+    .panel-head h2 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
+    .panel-head span { color: var(--muted); font-size: 12px; }
+    .site-list { display: grid; gap: 12px; }
+    .site-card { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--white); }
+    .site-image { width: 100%; height: 190px; object-fit: cover; object-position: top; display: block; background: #e7eeec; }
+    .site-body { padding: 18px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; }
+    .site-body h3 { margin: 0 0 4px; font-size: 17px; }
+    .site-body p { margin: 0; color: var(--muted); font-size: 12px; }
+    .launch { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 10px; padding: 11px 16px; background: var(--navy); color: white; text-decoration: none; font-weight: 750; white-space: nowrap; }
+    .launch:hover { background: #1b4053; }
+    .launch span { color: var(--lime); font-size: 18px; line-height: 0; }
+    .loading, .error { padding: 36px 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; }
+    .error { color: #9b2c2c; background: #fff7f7; }
+    .local-note { display: flex; align-items: center; gap: 8px; margin: 16px 8px 2px; color: var(--muted); font-size: 11px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime-dark); box-shadow: 0 0 0 4px rgba(71,168,46,.12); }
+    @media (max-width: 820px) {
+      body { background: linear-gradient(170deg, #0d2534 0 44%, #eef4f2 44% 100%); }
+      main { grid-template-columns: 1fr; gap: 44px; }
+      .brand { margin-bottom: 44px; }
+      .shell { padding-top: 24px; }
+      .proof { margin-bottom: 12px; }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-
-    <div class="logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="7" fill="#6366f1"/>
-        <rect x="6" y="7" width="16" height="12" rx="2" fill="white" opacity=".9"/>
-        <circle cx="14" cy="13" r="3" fill="#6366f1"/>
-        <rect x="10" y="21" width="8" height="2" rx="1" fill="white" opacity=".6"/>
-      </svg>
-      <span class="logo-text">SiteSnap</span>
+  <div class="shell">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="13" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="11.5" r="3" fill="currentColor"/><path d="M8 21h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div><strong>SiteSnap</strong><span>Local capture studio</span></div>
     </div>
 
-    <form id="form">
-      <div class="field">
-        <label for="site">Site</label>
-        <select id="site" required>
-          <option value="" disabled selected>Loading sites…</option>
-        </select>
-      </div>
+    <main>
+      <section class="intro">
+        <div class="eyebrow">Fast · exact · configurable</div>
+        <h1>Capture every state that matters.</h1>
+        <p>A focused production workflow for full pages, responsive viewports, live financial data, interactive tables, and modal states.</p>
+        <div class="proof">
+          <div><strong>2</strong><small>device passes</small></div>
+          <div><strong>1×</strong><small>page load per pass</small></div>
+          <div><strong>ZIP</strong><small>organized output</small></div>
+        </div>
+      </section>
 
-      <div class="field" id="field-username">
-        <label for="username">Username</label>
-        <input id="username" type="text" autocomplete="username" required placeholder="you@example.com" />
-        <p class="field-note" id="note-username" style="display:none">Not required for this site</p>
-      </div>
-
-      <div class="field" id="field-password">
-        <label for="password">Password</label>
-        <input id="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
-        <p class="field-note" id="note-password" style="display:none">Not required for this site</p>
-      </div>
-
-      <button class="btn" type="submit">Continue</button>
-    </form>
-
-    <div class="err" id="err"></div>
+      <section class="panel" aria-labelledby="projects-title">
+        <div class="panel-head"><h2 id="projects-title">Capture projects</h2><span>Choose a suite</span></div>
+        <div class="site-list" id="sites"><div class="loading">Loading local configuration…</div></div>
+        <div class="local-note"><span class="dot"></span> Runs only on this computer. No credentials or cloud service required.</div>
+      </section>
+    </main>
   </div>
 
   <script>
-    const siteCredentials = {};
-
-    function setCredentialFields(required) {
-      const uInput = document.getElementById('username');
-      const pInput = document.getElementById('password');
-      uInput.disabled = !required;
-      pInput.disabled = !required;
-      uInput.required = required;
-      pInput.required = required;
-      document.getElementById('note-username').style.display = required ? 'none' : '';
-      document.getElementById('note-password').style.display = required ? 'none' : '';
-    }
-
-    // Populate site dropdown
-    fetch('/api/sites')
-      .then(r => r.json())
-      .then(sites => {
-        const sel = document.getElementById('site');
-        sel.innerHTML = '';
+    async function boot() {
+      const list = document.getElementById('sites');
+      try {
+        const response = await fetch('/api/sites');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const sites = await response.json();
         if (!sites.length) {
-          sel.innerHTML = '<option value="" disabled selected>No sites configured</option>';
+          list.innerHTML = '<div class="loading">No capture projects are configured.</div>';
           return;
         }
-        sites.forEach(s => {
-          siteCredentials[s.id] = s.requiresCredentials !== false;
-          const o = document.createElement('option');
-          o.value = s.id;
-          o.textContent = s.name;
-          sel.appendChild(o);
+        list.innerHTML = '';
+        sites.forEach(site => {
+          const card = document.createElement('article');
+          card.className = 'site-card';
+          const image = site.imageUrl ? `<img class="site-image" src="${site.imageUrl}" alt="${escapeHtml(site.name)} capture preview">` : '';
+          card.innerHTML = `${image}<div class="site-body"><div><h3>${escapeHtml(site.name)}</h3><p>${escapeHtml(site.description || site.primaryUrl || '')}</p></div><a class="launch" href="/run?site=${encodeURIComponent(site.id)}">Configure <span>→</span></a></div>`;
+          list.appendChild(card);
         });
-        sel.selectedIndex = 0;
-        setCredentialFields(siteCredentials[sel.value] !== false);
-      });
-
-    document.getElementById('site').addEventListener('change', e => {
-      setCredentialFields(siteCredentials[e.target.value] !== false);
-    });
-
-    document.getElementById('form').addEventListener('submit', e => {
-      e.preventDefault();
-      const siteId  = document.getElementById('site').value;
-      if (!siteId) return;
-
-      const needsCreds = siteCredentials[siteId] !== false;
-      const username   = document.getElementById('username').value.trim();
-      const password   = document.getElementById('password').value;
-      if (needsCreds && (!username || !password)) return;
-
-      // Store credentials in sessionStorage — never in the URL
-      sessionStorage.setItem('ss_site',     siteId);
-      sessionStorage.setItem('ss_username', needsCreds ? username : '');
-      sessionStorage.setItem('ss_password', needsCreds ? password : '');
-      sessionStorage.setItem('ss_requires_credentials', needsCreds ? '1' : '0');
-
-      window.location.href = `/run?site=${encodeURIComponent(siteId)}`;
-    });
+      } catch (error) {
+        list.innerHTML = `<div class="error">Could not load capture projects: ${escapeHtml(error.message)}</div>`;
+      }
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
+    }
+    boot();
   </script>
 </body>
 </html>

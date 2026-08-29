@@ -6,183 +6,188 @@ import { randomUUID } from 'crypto';
 import { exec } from 'child_process';
 import { run } from './core/runner.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SITES_DIR  = path.join(__dirname, 'sites');
+const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const SITES_DIR = path.join(ROOT_DIR, 'sites');
+const MAX_JOBS = 20;
 
-const app  = express();
-const jobs = new Map(); // jobId → { status, entries[], total, log[], zipPath, error }
+const app = express();
+const jobs = new Map();
 
-app.use(express.json({ limit: '2mb' })); // config overrides can be large-ish
-app.use(express.static(path.join(__dirname, 'ui')));
+app.disable('x-powered-by');
+app.use(express.json({ limit: '5mb' }));
+app.use(express.static(path.join(ROOT_DIR, 'ui'), { etag: true, maxAge: '5m' }));
 
-// Serve per-site thumbnail images: GET /site-image/:siteId
-app.get('/site-image/:siteId', (req, res) => {
-  const imgPath = path.join(SITES_DIR, req.params.siteId, 'images', `${req.params.siteId}.png`);
-  if (!fs.existsSync(imgPath)) return res.sendStatus(404);
-  res.sendFile(imgPath);
+app.get('/api/health', (_request, response) => {
+  response.json({ ok: true, mode: 'local' });
 });
 
-// ---------------------------------------------------------------------------
-// API: list available sites
-// ---------------------------------------------------------------------------
-
-app.get('/api/sites', (_req, res) => {
-  if (!fs.existsSync(SITES_DIR)) return res.json([]);
-
-  const sites = fs
-    .readdirSync(SITES_DIR, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => {
-      const dir  = path.join(SITES_DIR, d.name);
-      let   name = d.name;
-      let   requiresCredentials = true;
-      try {
-        const meta = JSON.parse(fs.readFileSync(path.join(dir, 'metadata.json'), 'utf8'));
-        name = meta.siteName || name;
-        requiresCredentials = meta.requiresCredentials !== false;
-      } catch {
-        // fall back to directory name
-      }
-      const hasImage = fs.existsSync(path.join(dir, 'images', `${d.name}.png`));
-      return { id: d.name, name, requiresCredentials, imageUrl: hasImage ? `/site-image/${d.name}` : null };
-    });
-
-  res.json(sites);
+app.get('/api/sites', (_request, response) => {
+  response.json(listSites());
 });
 
-// ---------------------------------------------------------------------------
-// API: return a site's config (used by run.html to build the UI)
-// ---------------------------------------------------------------------------
-
-app.get('/api/config/:siteId', (req, res) => {
-  const configPath = path.join(SITES_DIR, req.params.siteId, 'config.json');
-  if (!fs.existsSync(configPath)) {
-    return res.status(404).json({ error: 'Site config not found.' });
-  }
-  res.json(JSON.parse(fs.readFileSync(configPath, 'utf8')));
-});
-
-// ---------------------------------------------------------------------------
-// API: start a screenshot run
-// ---------------------------------------------------------------------------
-
-app.post('/api/run', (req, res) => {
-  const { jobId: clientJobId, siteId, username, password, config: configOverride } = req.body;
-
-  if (!siteId) {
-    return res.status(400).json({ error: 'siteId is required.' });
-  }
-
-  const siteDir = path.join(SITES_DIR, siteId);
-  if (!fs.existsSync(path.join(siteDir, 'config.json'))) {
-    return res.status(404).json({ error: 'Site not found.' });
-  }
-
-  let requiresCredentials = true;
+app.get('/api/config/:siteId', (request, response) => {
+  const siteDir = resolveSiteDir(request.params.siteId);
+  if (!siteDir) return response.status(404).json({ error: 'Site not found.' });
   try {
-    const meta = JSON.parse(fs.readFileSync(path.join(siteDir, 'metadata.json'), 'utf8'));
-    requiresCredentials = meta.requiresCredentials !== false;
-  } catch { /* fall back to requiring credentials */ }
+    return response.json(readJson(path.join(siteDir, 'config.json')));
+  } catch (error) {
+    return response.status(500).json({ error: `Invalid site config: ${error.message}` });
+  }
+});
 
-  if (requiresCredentials && (!username || !password)) {
-    return res.status(400).json({ error: 'siteId, username, and password are required.' });
+app.get('/site-image/:siteId', (request, response) => {
+  const siteDir = resolveSiteDir(request.params.siteId);
+  if (!siteDir) return response.sendStatus(404);
+  const metadata = safeReadJson(path.join(siteDir, 'metadata.json')) ?? {};
+  const imageName = metadata.image || `${request.params.siteId}.png`;
+  const imagePath = path.join(siteDir, 'images', path.basename(imageName));
+  if (!fs.existsSync(imagePath)) return response.sendStatus(404);
+  return response.sendFile(imagePath);
+});
+
+app.post('/api/run', (request, response) => {
+  const { jobId: requestedJobId, siteId, config: configOverride } = request.body ?? {};
+  const siteDir = resolveSiteDir(siteId);
+  if (!siteDir) return response.status(404).json({ error: 'Site not found.' });
+  if (configOverride && (!Array.isArray(configOverride.pages) || !configOverride.baseUrl)) {
+    return response.status(400).json({ error: 'Invalid capture configuration.' });
   }
 
-  const jobId = clientJobId || randomUUID();
-  const job   = { status: 'running', entries: [], total: 0, log: [], zipPath: null, error: null };
+  evictOldJobs();
+  const jobId = typeof requestedJobId === 'string' && requestedJobId.length <= 100
+    ? requestedJobId
+    : randomUUID();
+  const job = {
+    status: 'running',
+    entries: [],
+    total: 0,
+    log: [],
+    zipPath: null,
+    error: null,
+    createdAt: Date.now(),
+  };
   jobs.set(jobId, job);
 
-  const onProgress = msg => {
-    if (msg && typeof msg === 'object') {
-      if (msg.type === 'total')   { job.total = msg.total; }
-      else if (msg.type === 'capture') { job.entries.push({ label: msg.label, filepath: msg.filepath }); }
-    } else {
-      job.log.push(msg);
+  const onProgress = message => {
+    if (message && typeof message === 'object') {
+      if (message.type === 'total') job.total = Number(message.total) || 0;
+      if (message.type === 'capture') {
+        job.entries.push({
+          label: message.label,
+          filename: message.filename,
+          filepath: message.filepath,
+        });
+      }
+      return;
     }
+    job.log.push(String(message));
+    if (job.log.length > 200) job.log.shift();
   };
 
-  // Fire-and-forget — credentials are passed directly and never stored
-  const credentials = requiresCredentials ? { username, password } : null;
-  run(siteDir, credentials, configOverride ?? null, onProgress)
-    .then(zipPath => Object.assign(job, { status: 'done',  zipPath }))
-    .catch(err   => Object.assign(job, { status: 'error', error: err.message }));
+  run(siteDir, null, configOverride ?? null, onProgress)
+    .then(zipPath => Object.assign(job, { status: 'done', zipPath }))
+    .catch(error => Object.assign(job, { status: 'error', error: error.message }));
 
-  res.json({ jobId });
+  return response.json({ jobId });
 });
 
-// ---------------------------------------------------------------------------
-// API: poll job status
-// ---------------------------------------------------------------------------
-
-app.get('/api/status/:jobId', (req, res) => {
-  const job = jobs.get(req.params.jobId);
-  if (!job) return res.status(404).json({ error: 'Job not found.' });
-  res.json({
-    status:  job.status,
-    entries: job.entries.map((e, i) => ({ label: e.label, index: i })),
-    total:   job.total,
-    lastLog: job.log[job.log.length - 1] ?? null,
-    zipPath: job.zipPath,
-    error:   job.error,
+app.get('/api/status/:jobId', (request, response) => {
+  const job = jobs.get(request.params.jobId);
+  if (!job) return response.status(404).json({ error: 'Job not found.' });
+  return response.json({
+    status: job.status,
+    entries: job.entries.map((entry, index) => ({
+      label: entry.label,
+      filename: entry.filename,
+      index,
+    })),
+    total: job.total,
+    lastLog: job.log.at(-1) ?? null,
+    error: job.error,
   });
 });
 
-// ---------------------------------------------------------------------------
-// API: serve capture thumbnail (raw PNG, browser scales via CSS)
-// ---------------------------------------------------------------------------
-
-app.get('/api/thumbnail/:jobId/:index', (req, res) => {
-  const job = jobs.get(req.params.jobId);
-  if (!job) return res.status(404).end();
-  const idx   = Number(req.params.index);
-  const entry = job.entries[idx];
-  if (!entry) return res.status(404).end();
-  if (!fs.existsSync(entry.filepath)) return res.status(404).end();
-  res.setHeader('Content-Type', 'image/png');
-  res.setHeader('Cache-Control', 'public, max-age=600');
-  fs.createReadStream(entry.filepath).pipe(res);
+app.get('/api/thumbnail/:jobId/:index', (request, response) => {
+  const entry = jobs.get(request.params.jobId)?.entries[Number(request.params.index)];
+  if (!entry || !fs.existsSync(entry.filepath)) return response.sendStatus(404);
+  response.setHeader('Content-Type', 'image/png');
+  response.setHeader('Cache-Control', 'private, max-age=600');
+  return fs.createReadStream(entry.filepath).pipe(response);
 });
 
-// ---------------------------------------------------------------------------
-// API: download completed ZIP
-// ---------------------------------------------------------------------------
-
-app.get('/api/download/:jobId', (req, res) => {
-  const job = jobs.get(req.params.jobId);
-  if (!job || job.status !== 'done' || !job.zipPath) {
-    return res.status(404).json({ error: 'Not ready or job not found.' });
+app.get('/api/download/:jobId', (request, response) => {
+  const job = jobs.get(request.params.jobId);
+  if (!job || job.status !== 'done' || !job.zipPath || !fs.existsSync(job.zipPath)) {
+    return response.status(404).json({ error: 'Capture archive is not ready.' });
   }
-  res.download(job.zipPath, path.basename(job.zipPath));
+  return response.download(job.zipPath, path.basename(job.zipPath));
 });
 
-// ---------------------------------------------------------------------------
-// SPA route: serve run.html at /run
-// ---------------------------------------------------------------------------
-
-app.get('/run', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'ui', 'run.html'));
+app.get('/run', (_request, response) => {
+  response.sendFile(path.join(ROOT_DIR, 'ui', 'run.html'));
 });
 
-// ---------------------------------------------------------------------------
-// Start
-// ---------------------------------------------------------------------------
+function listSites() {
+  if (!fs.existsSync(SITES_DIR)) return [];
+  return fs.readdirSync(SITES_DIR, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => {
+      const siteDir = path.join(SITES_DIR, entry.name);
+      if (!fs.existsSync(path.join(siteDir, 'config.json'))) return null;
+      const metadata = safeReadJson(path.join(siteDir, 'metadata.json')) ?? {};
+      const imageName = metadata.image || `${entry.name}.png`;
+      const hasImage = fs.existsSync(path.join(siteDir, 'images', path.basename(imageName)));
+      return {
+        id: entry.name,
+        name: metadata.siteName || entry.name,
+        description: metadata.description || '',
+        primaryUrl: metadata.primaryUrl || '',
+        requiresCredentials: false,
+        imageUrl: hasImage ? `/site-image/${entry.name}` : null,
+      };
+    })
+    .filter(Boolean);
+}
+
+function resolveSiteDir(siteId) {
+  if (typeof siteId !== 'string' || !/^[a-z0-9][a-z0-9_-]*$/i.test(siteId)) return null;
+  const siteDir = path.join(SITES_DIR, siteId);
+  if (!fs.existsSync(path.join(siteDir, 'config.json'))) return null;
+  return siteDir;
+}
+
+function readJson(filepath) {
+  return JSON.parse(fs.readFileSync(filepath, 'utf8'));
+}
+
+function safeReadJson(filepath) {
+  try { return readJson(filepath); } catch { return null; }
+}
+
+function evictOldJobs() {
+  while (jobs.size >= MAX_JOBS) {
+    const oldest = [...jobs.entries()].sort((left, right) => left[1].createdAt - right[1].createdAt)[0];
+    if (!oldest) break;
+    jobs.delete(oldest[0]);
+  }
+}
 
 function startServer(port) {
   const server = app.listen(port, () => {
     const url = `http://localhost:${port}`;
     console.log(`SiteSnap → ${url}`);
-    const cmd = process.platform === 'win32' ? `start ${url}`
-      : process.platform === 'darwin'        ? `open ${url}`
-      : `xdg-open ${url}`;
-    exec(cmd);
+    if (process.env.SITESNAP_NO_OPEN === '1') return;
+    const command = process.platform === 'win32'
+      ? `start ${url}`
+      : process.platform === 'darwin'
+        ? `open ${url}`
+        : `xdg-open ${url}`;
+    exec(command);
   });
 
-  server.on('error', err => {
-    if (err.code === 'EADDRINUSE') {
-      startServer(port + 1);
-    } else {
-      throw err;
-    }
+  server.on('error', error => {
+    if (error.code === 'EADDRINUSE') return startServer(port + 1);
+    throw error;
   });
 }
 

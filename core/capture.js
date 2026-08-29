@@ -1,49 +1,70 @@
-const ON_LAMBDA = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
-
+/** Capture a stable screenshot without truncating long local full-page runs. */
 export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
   if (fullPage) {
-    // On Lambda: skip the lazy-load scroll. It pre-loads all images into Chromium memory,
-    // and the subsequent setViewportSize triggers a repaint of all of them at once → OOM.
-    if (!ON_LAMBDA) await scrollForLazyLoad(page);
-    if (afterScroll) await afterScroll();
+    await scrollForLazyLoad(page);
+    await afterScroll?.();
+    await settleVisualAssets(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
 
-    const viewport   = page.viewportSize();
-    const fullHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-
-    // Mobile layouts stack content vertically and are 2–3× taller than desktop.
-    // On Lambda, expanding to full mobile height OOMs Chromium even without pre-scroll
-    // (IntersectionObserver fires for all newly-visible elements simultaneously).
-    // Cap mobile at 5000px on Lambda — captures all critical content without crashing.
-    // Desktop pages are typically shorter, so the 15000px cap is rarely hit.
-    const isMobile   = viewport.width <= 768;
-    const maxHeight  = ON_LAMBDA && isMobile ? 5000 : 15000;
-    const safeHeight = Math.min(fullHeight, maxHeight);
-
-    await page.setViewportSize({ width: viewport.width, height: safeHeight });
-    await page.screenshot({ path: filepath, fullPage: false });
-    await page.setViewportSize(viewport); // restore
-  } else {
-    await page.screenshot({ path: filepath, fullPage: false });
+    // Expanding only the height keeps output at the requested viewport width.
+    // Native fullPage capture includes Nuveen's off-canvas utility drawer and
+    // silently widens a 1440px capture to 1722px.
+    const viewport = page.viewportSize();
+    const fullHeight = await page.evaluate(() => Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+    ));
+    try {
+      await page.setViewportSize({ width: viewport.width, height: fullHeight });
+      await page.screenshot({
+        path: filepath,
+        fullPage: false,
+        animations: 'disabled',
+        caret: 'hide',
+      });
+    } finally {
+      await page.setViewportSize(viewport);
+    }
+    return;
   }
+
+  await page.screenshot({
+    path: filepath,
+    fullPage,
+    animations: 'disabled',
+    caret: 'hide',
+  });
 }
 
-/**
- * Scroll the page in 6 large jumps to trigger lazy-loaded images, then
- * return to the top. Total time: ~700 ms regardless of page length.
- */
+/** Trigger IntersectionObserver content using viewport-sized hops. */
 export async function scrollForLazyLoad(page) {
   await page.evaluate(async () => {
-    const totalHeight = document.documentElement.scrollHeight;
-    const jumps = 6;
+    const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    const viewport = Math.max(window.innerHeight, 600);
+    const hops = Math.min(14, Math.max(3, Math.ceil(height / (viewport * 1.5))));
 
-    for (let i = 1; i <= jumps; i++) {
-      window.scrollTo(0, Math.round((totalHeight / jumps) * i));
-      await new Promise(r => setTimeout(r, 60));
+    for (let i = 1; i <= hops; i += 1) {
+      window.scrollTo(0, Math.round((height / hops) * i));
+      await new Promise(resolve => setTimeout(resolve, 75));
     }
 
     window.scrollTo(0, 0);
-    await new Promise(r => setTimeout(r, 100));
   });
+  await page.waitForTimeout(150);
+}
 
-  await page.waitForTimeout(100);
+async function settleVisualAssets(page) {
+  await page.evaluate(async () => {
+    await document.fonts?.ready;
+    const pending = [...document.images]
+      .filter(image => !image.complete)
+      .slice(0, 80)
+      .map(image => new Promise(resolve => {
+        const done = () => resolve();
+        image.addEventListener('load', done, { once: true });
+        image.addEventListener('error', done, { once: true });
+        setTimeout(done, 1500);
+      }));
+    await Promise.all(pending);
+  }).catch(() => {});
 }

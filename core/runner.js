@@ -1,195 +1,128 @@
 import path from 'path';
 import fs from 'fs';
 import { launchContext, DESKTOP_VIEWPORT, MOBILE_VIEWPORT } from './browser.js';
-import { executeActions, injectLogin, clickByText } from './actions.js';
+import { executeActions } from './actions.js';
 import { captureScreenshot } from './capture.js';
-import { waitForNetworkIdle, hideISITray, waitForCondition } from './utils.js';
+import { waitForCondition, waitForNetworkIdle, firstVisible } from './utils.js';
 import { zipDirectory } from './zip.js';
 
-const DEFAULTS = {
-  desktop: DESKTOP_VIEWPORT,
-  mobile:  MOBILE_VIEWPORT,
+const DEFAULT_DEVICES = {
+  desktop: { enabled: true, viewport: DESKTOP_VIEWPORT, deviceScaleFactor: 1 },
+  mobile:  { enabled: true, viewport: MOBILE_VIEWPORT, deviceScaleFactor: 1 },
 };
 
-// ---------------------------------------------------------------------------
-// Sequential file-name counter
-// ---------------------------------------------------------------------------
-
 class Sequence {
-  constructor() { this.n = 1; }
+  constructor() { this.number = 1; }
   next(name) {
-    return `${String(this.n++).padStart(2, '0')}_${name}.png`;
+    const prefix = String(this.number++).padStart(2, '0');
+    return `${prefix}_${sanitizeName(name)}.png`;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Public entry point
-// ---------------------------------------------------------------------------
-
-/**
- * @param {string}  siteDir         Absolute path to the site folder
- * @param {{ username: string, password: string }} credentials
- * @param {object|null} configOverride  Optional modified config from the UI
- * @param {(msg: string) => void} [onProgress]
- * @returns {string} Absolute path to the output ZIP
- */
-/**
- * @param {string}  siteDir        Absolute path to the site folder
- * @param {{ username: string, password: string }} credentials
- * @param {object|null} configOverride  Optional modified config from the UI
- * @param {(msg: object|string) => Promise<void>} [onProgress]
- * @param {string|null} outputBaseDir   Override for the output root (used on Netlify/Lambda
- *                                      to write to /tmp instead of siteDir/output)
- * @returns {string} Absolute path to the output ZIP
- */
-export async function run(siteDir, credentials, configOverride = null, onProgress = null, outputBaseDir = null, executablePath = null) {
+/** Run all enabled capture states and return the absolute ZIP path. */
+export async function run(
+  siteDir,
+  credentials,
+  configOverride = null,
+  onProgress = null,
+  outputBaseDir = null,
+  _unusedExecutablePath = null,
+) {
   const config = configOverride
     ?? JSON.parse(fs.readFileSync(path.join(siteDir, 'config.json'), 'utf8'));
+  validateConfig(config);
 
-  const log = async msg => { if (typeof msg === 'string') console.log(msg); await onProgress?.(msg); };
+  const log = async message => {
+    if (typeof message === 'string') console.log(message);
+    await onProgress?.(message);
+  };
 
+  const devices = enabledDevices(config);
   await log({ type: 'total', total: countTotalCaptures(config) });
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const outBase    = outputBaseDir ?? path.join(siteDir, 'output');
-  const runDir     = path.join(outBase, `run-${timestamp}`);
-  const desktopDir = path.join(runDir, 'desktop');
-  const mobileDir  = path.join(runDir, 'mobile');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const outputRoot = outputBaseDir ?? path.join(siteDir, 'output');
+  const runDir = path.join(outputRoot, `run-${timestamp}`);
+  fs.mkdirSync(runDir, { recursive: true });
 
-  fs.mkdirSync(desktopDir, { recursive: true });
-  fs.mkdirSync(mobileDir,  { recursive: true });
+  await log(`[${devices.join(' + ')} — running in parallel]`);
+  const results = await Promise.allSettled(devices.map(device => {
+    const outputDir = path.join(runDir, device);
+    fs.mkdirSync(outputDir, { recursive: true });
+    return runDevice(config, credentials, outputDir, device, log);
+  }));
 
-  try {
-    const onLambda = !!(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    if (onLambda) {
-      // One Chromium at a time on Lambda — two simultaneous instances causes OOM crashes.
-      await log('[Desktop → Mobile — running sequentially on Lambda]');
-      await runDevice(config, credentials, desktopDir, 'desktop', log, executablePath);
-      await runDevice(config, credentials, mobileDir,  'mobile',  log, executablePath);
-    } else {
-      await log('[Desktop + Mobile — running in parallel]');
-      await Promise.all([
-        runDevice(config, credentials, desktopDir, 'desktop', log, executablePath),
-        runDevice(config, credentials, mobileDir,  'mobile',  log, executablePath),
-      ]);
-    }
-  } catch (err) {
-    fs.rmSync(runDir, { recursive: true, force: true });
-    throw err;
+  const failures = results.filter(result => result.status === 'rejected');
+  if (failures.length) {
+    const detail = failures.map(result => result.reason?.message ?? String(result.reason)).join('; ');
+    throw new Error(`Capture pass failed: ${detail}`);
   }
 
-  await log('Packaging…');
-  const zipPath = path.join(outBase, `run-${timestamp}.zip`);
+  await log('Packaging screenshots…');
+  const zipPath = path.join(outputRoot, `run-${timestamp}.zip`);
   await zipDirectory(runDir, zipPath);
-
-  // runDir is intentionally kept so thumbnails remain serveable after the run.
-  // Callers that manage their own storage (e.g. Netlify /tmp) clean it up themselves.
   return zipPath;
 }
 
-// ---------------------------------------------------------------------------
-// Device pass
-// ---------------------------------------------------------------------------
-
-async function runDevice(config, credentials, outputDir, device, log, executablePath = null) {
-  await log(`[${device}] Launching browser…`);
-  const { browser, page } = await launchContext(DEFAULTS[device], credentials, executablePath);
-  await log(`[${device}] Browser ready.`);
-  const seq = new Sequence();
+async function runDevice(config, credentials, outputDir, device, log) {
+  const deviceConfig = resolveDeviceConfig(config, device);
+  await log(`[${device}] Launching Chromium…`);
+  const { browser, context, page } = await launchContext(
+    deviceConfig.viewport,
+    credentials,
+    null,
+    {
+      deviceScaleFactor: deviceConfig.deviceScaleFactor,
+      blockMedia: config.browser?.blockMedia === true,
+      actionTimeoutMs: config.browser?.actionTimeoutMs,
+      navigationTimeoutMs: config.browser?.navigationTimeoutMs,
+    },
+  );
+  const sequence = new Sequence();
 
   try {
-    // ── Entry sequence (always runs, even if the home page is disabled for capture)
-    // Dismisses cookie banners, HCP gate, and logs in so subsequent pages are clean.
-    const entryPage = config.pages.find(p => p.includesEntry);
-    if (entryPage) {
-      const entryUrl      = `${config.baseUrl}${entryPage.path}`;
-      const captureEnabled = entryPage.enabled !== false;
-      const steps          = enabledSteps(entryPage, device);
-
-      await navigate(page, entryUrl);
-
-      if (captureEnabled) {
-        for (const step of steps.filter(s => s.phase === 'pre-entry')) {
-          try {
-            await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
-          } catch (err) {
-            await log(`  [skip] ${device}: ${entryPage.id}-${step.id} — ${err.message}`);
-          }
-        }
-      }
-
-      // Run entry actions. If they fail, navigate fresh and retry once —
-      // on Lambda the cookie-banner animation can still be running when the
-      // HCP gate click fires, causing it to miss. A fresh load gives a clean state.
-      let entryOk = false;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          if (attempt === 2) {
-            await log(`  [retry] Entry actions failed on attempt 1 — retrying on fresh page`);
-            await navigate(page, entryUrl);
-          }
-          if (entryPage.entryActions?.length) {
-            await executeActions(page, entryPage.entryActions);
-          }
-          if (credentials) await injectLogin(page, credentials);
-          entryOk = true;
-          break;
-        } catch (err) {
-          if (attempt === 2) {
-            await log(`  [skip] Entry actions failed after retry — ${err.message}. Continuing with remaining pages.`);
-          }
-        }
-      }
-
-      if (captureEnabled && entryOk) {
-        for (const step of steps.filter(s => s.phase === 'post-entry')) {
-          try {
-            await captureStep(page, step, outputDir, seq, entryPage.id, device, log);
-          } catch (err) {
-            await log(`  [skip] ${device}: ${entryPage.id}-${step.id} — ${err.message}`);
-          }
-        }
-        for (const step of steps.filter(s => !s.phase || s.phase === 'authenticated')) {
-          if (page.isClosed()) { await log(`  [skip] ${device}: browser closed mid-run`); break; }
-          await prepareAndCapture(page, step, outputDir, seq, entryPage.id, device, log);
-          if (device === 'mobile' && step.captureHamburger) {
-            await captureHamburger(page, outputDir, seq, log);
-          }
-        }
-      }
+    if (config.browser?.cookies?.length) {
+      await context.addCookies(config.browser.cookies);
     }
+    await log(`[${device}] Ready.`);
 
-    // ── Remaining pages
-    for (const pageCfg of config.pages) {
-      if (pageCfg.includesEntry) continue; // already handled above
-      if (pageCfg.enabled === false) continue;
-      if (page.isClosed()) { await log(`  [skip] ${device}: browser closed — skipping remaining pages`); break; }
-      const steps = enabledSteps(pageCfg, device);
+    for (const pageConfig of config.pages) {
+      if (pageConfig.enabled === false) continue;
+      const steps = enabledSteps(pageConfig, device);
       if (!steps.length) continue;
 
-      if (pageCfg.type === 'external') {
-        for (const step of steps) {
-          await captureExternal(page, config, pageCfg, step, outputDir, seq, device, log);
+      const pageUrl = toUrl(config.baseUrl, pageConfig.path);
+      let dirty = false;
+      await loadPage(page, pageUrl, pageConfig, log);
+
+      for (const step of steps) {
+        const stepUrl = step.url || (step.path ? toUrl(config.baseUrl, step.path) : pageUrl);
+        const hasOwnTarget = Boolean(step.url || step.path);
+        if (dirty || step.resetBefore || (hasOwnTarget && !sameTarget(page.url(), stepUrl))) {
+          await loadPage(page, stepUrl, pageConfig, log);
+          dirty = false;
         }
-      } else {
-        const pageUrl = `${config.baseUrl}${pageCfg.path}`;
+
         try {
-          await navigate(page, pageUrl);
-        } catch (err) {
-          await log(`  [skip] ${pageCfg.label} — navigation failed: ${err.message}`);
-          continue;
-        }
-        let prevSkipped = false;
-        for (const step of steps) {
-          // Re-navigate if a previous step navigated away (e.g. form submit).
-          // Check both URL drift AND the skip flag — a POST can land on the same URL.
-          if (prevSkipped || !page.url().startsWith(pageUrl)) {
-            try { await navigate(page, pageUrl); } catch (navErr) {
-              await log(`  [skip] ${pageCfg.label} — re-navigation failed: ${navErr.message}`);
-              break;
-            }
+          await log(`  [${device}] ${step.group ? `${step.group} · ` : ''}${step.label}`);
+          await executeActions(page, step.actions, log);
+          if (step.waitFor) await waitForCondition(page, step.waitFor);
+          if (step.delayMs) await page.waitForTimeout(Number(step.delayMs));
+          await captureStep(page, step, outputDir, sequence, pageConfig.id, device, deviceConfig, log);
+        } catch (error) {
+          dirty = true;
+          const debugPath = path.join(outputDir, `debug_${sanitizeName(pageConfig.id)}_${sanitizeName(step.id)}.png`);
+          await page.screenshot({ path: debugPath, fullPage: false }).catch(() => {});
+          await log(`  [skip] ${device}: ${pageConfig.id}-${step.id} — ${error.message}`);
+          await log(`  [debug] ${debugPath}`);
+        } finally {
+          if (step.cleanupActions?.length) {
+            await executeActions(
+              page,
+              step.cleanupActions.map(action => ({ ...action, optional: true })),
+              log,
+            ).catch(() => {});
           }
-          prevSkipped = await prepareAndCapture(page, step, outputDir, seq, pageCfg.id, device, log);
         }
       }
     }
@@ -198,182 +131,125 @@ async function runDevice(config, credentials, outputDir, device, log, executable
   }
 }
 
-// ---------------------------------------------------------------------------
-// External / interstitial captures
-// ---------------------------------------------------------------------------
-
-async function captureExternal(page, config, pageCfg, step, outputDir, seq, device, log) {
-  try {
-    const triggerUrl = `${config.baseUrl}${pageCfg.triggerPage ?? '/'}`;
-    await navigate(page, triggerUrl);
-    await hideISITray(page);
-
-    const filename = seq.next(`${pageCfg.id}-${step.id}`);
-    const filepath  = path.join(outputDir, filename);
-
-    // Listen for a popup before clicking — the interstitial may open in a new tab
-    const popupPromise = page.waitForEvent('popup', { timeout: 5000 }).catch(() => null);
-
-    const triggerText = step.trigger?.text;
-    if (!triggerText) throw new Error('step.trigger.text is required for external captures');
-
-    await clickByText(page, triggerText);
-
-    const popup = await popupPromise;
-
-    if (popup) {
-      // Opened in a new tab — capture it and close
-      await waitForNetworkIdle(popup);
-      const stepViewport = step[device];
-      if (stepViewport) await popup.setViewportSize(stepViewport);
-      await popup.screenshot({ path: filepath, fullPage: false });
-      await popup.close();
-    } else {
-      // Interstitial appeared as a modal/overlay on the current page
-      await page.waitForTimeout(800);
-      const stepViewport = step[device];
-      if (stepViewport) await page.setViewportSize(stepViewport);
-      await page.screenshot({ path: filepath, fullPage: false });
-      if (stepViewport) await page.setViewportSize(DEFAULTS[device]);
-      // Dismiss modal
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
-    }
-
-    await log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
-  } catch (err) {
-    await log(`  [skip] ${pageCfg.label} — ${err.message}`);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// Returns true if the step was skipped (so the caller can re-navigate before the next step).
-async function prepareAndCapture(page, step, outputDir, seq, pageId, device, log) {
-  try {
-    // Hide ISI before actions so the floating tray doesn't intercept clicks.
-    if (step.hideISI) {
-      await hideISITray(page);
-    }
-    if (step.actions?.length) {
-      await executeActions(page, step.actions);
-    }
-    if (step.waitFor) {
-      await waitForCondition(page, step.waitFor);
-    }
-    // Re-apply after actions in case a JS re-render brought it back.
-    if (step.hideISI) {
-      await hideISITray(page);
-    }
-    await captureStep(page, step, outputDir, seq, pageId, device, log);
-    return false;
-  } catch (err) {
-    try {
-      const debugPath = `/tmp/sitesnap-step-fail-${pageId}-${step.id}-${Date.now()}.png`;
-      await page.screenshot({ path: debugPath, fullPage: false });
-      await log(`  [debug] screenshot → ${debugPath}`);
-    } catch { /* best-effort */ }
-    await log(`  [skip] ${device}: ${pageId}-${step.id} — ${err.message}`);
-    return true;
-  }
-}
-
-async function captureStep(page, step, outputDir, seq, pageId, device, log) {
-  const filename = seq.next(`${pageId}-${step.id}`);
-  const filepath  = path.join(outputDir, filename);
-
-  if (step.captureMode === 'element') {
-    // Screenshot a single element — no scroll, no page.evaluate.
-    // Use this for forms showing validation errors where a POST might fire after the click.
-    const el = page.locator(step.selector).first();
-    await el.waitFor({ state: 'visible', timeout: 10000 });
-    await el.screenshot({ path: filepath });
-  } else if (step.captureMode === 'viewport') {
-    const stepViewport = step[device]; // e.g. step.desktop or step.mobile
-    if (stepViewport) await page.setViewportSize(stepViewport);
-    await page.screenshot({ path: filepath, fullPage: false });
-    if (stepViewport) await page.setViewportSize(DEFAULTS[device]); // restore
-  } else {
-    // fullPage — scrolls to trigger lazy load, then captures.
-    // Re-hide ISI drawer after scroll in case the sticky element re-attached.
-    await captureScreenshot(page, filepath, {
-      fullPage: true,
-      afterScroll: step.hideISI ? () => hideISITray(page) : null,
+async function loadPage(page, url, pageConfig, log) {
+  await log(`  Loading ${pageConfig.label}…`);
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await waitForNetworkIdle(page, Number(pageConfig.networkIdleTimeoutMs) || 3000);
+  if (pageConfig.readySelector) {
+    await firstVisible(page, pageConfig.readySelector).waitFor({
+      state: 'visible',
+      timeout: Number(pageConfig.readyTimeoutMs) || 20000,
     });
   }
-
-  await log({ type: 'capture', label: `  ${device}: ${filename}`, filepath });
+  await page.evaluate(() => document.fonts?.ready).catch(() => {});
+  if (pageConfig.settleMs) await page.waitForTimeout(Number(pageConfig.settleMs));
+  if (pageConfig.actions?.length) await executeActions(page, pageConfig.actions, log);
 }
 
-async function captureHamburger(page, outputDir, seq, log) {
-  const selectors = [
-    // Site-specific: Gatsby header nav toggle
-    '#gatsby-focus-wrapper > header > div.container > div > button',
-    // Generic ARIA / class patterns
-    'button[aria-label*="menu" i]',
-    'button[aria-label*="navigation" i]',
-    'button[aria-label*="nav" i]',
-    '[role="button"][aria-label*="menu" i]',
-    'button[aria-expanded]',
-    '.hamburger',
-    '.nav-toggle',
-    '.menu-toggle',
-    '[class*="hamburger"]',
-    '[class*="menu-toggle"]',
-  ];
+async function captureStep(page, step, outputDir, sequence, pageId, device, deviceConfig, log) {
+  const filename = sequence.next(`${pageId}-${step.id}`);
+  const filepath = path.join(outputDir, filename);
+  const baseViewport = deviceConfig.viewport;
+  const stepViewport = step[device] || baseViewport;
+  const mode = step.captureMode || 'viewport';
 
-  for (const sel of selectors) {
+  if (mode === 'fullPage') {
+    await captureScreenshot(page, filepath, { fullPage: true });
+  } else if (mode === 'element') {
+    const selector = step.selector || step.focusSelector;
+    if (!selector) throw new Error('Element capture requires a selector');
+    const element = firstVisible(page, selector);
+    await element.waitFor({ state: 'visible', timeout: 12000 });
+    await element.screenshot({ path: filepath, animations: 'disabled', caret: 'hide' });
+  } else {
+    await page.setViewportSize(stepViewport);
     try {
-      const btn = page.locator(sel).first();
-      if (await btn.isVisible({ timeout: 1000 })) {
-        await btn.click();
-        await page.waitForTimeout(600);
-
-        const filename = seq.next('nav-open-mobile');
-        const filepath = path.join(outputDir, filename);
-        await page.screenshot({ path: filepath, fullPage: false });
-        await log({ type: 'capture', label: `  mobile: ${filename}`, filepath });
-
-        await btn.click(); // close before next navigation
-        await page.waitForTimeout(300);
-        return;
+      if (step.focusSelector) {
+        const focus = firstVisible(page, step.focusSelector);
+        await focus.waitFor({ state: 'visible', timeout: 12000 });
+        await focus.scrollIntoViewIfNeeded();
+        if (step.focusOffset) {
+          await page.evaluate(offset => window.scrollBy(0, Number(offset) || 0), step.focusOffset);
+        }
+        await page.waitForTimeout(150);
+      } else if (step.scrollTop !== false) {
+        await page.evaluate(() => window.scrollTo(0, 0));
       }
-    } catch {
-      // try next
+      await captureScreenshot(page, filepath, { fullPage: false });
+    } finally {
+      if (stepViewport.width !== baseViewport.width || stepViewport.height !== baseViewport.height) {
+        await page.setViewportSize(baseViewport);
+      }
     }
   }
-  await log('  [skip] Hamburger menu not found');
+
+  await log({
+    type: 'capture',
+    label: `${device} · ${step.group || pageId} · ${step.label}`,
+    filename,
+    filepath,
+  });
 }
 
-async function navigate(page, url) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-  await waitForNetworkIdle(page);
+function resolveDeviceConfig(config, device) {
+  const base = DEFAULT_DEVICES[device];
+  const custom = config.devices?.[device] ?? {};
+  return {
+    ...base,
+    ...custom,
+    viewport: { ...base.viewport, ...(custom.viewport ?? {}) },
+  };
 }
 
-function countTotalCaptures(config) {
-  let total = 0;
-  for (const page of config.pages) {
-    if (page.enabled === false) continue;
-    total += enabledSteps(page, 'desktop').length;
-    const mobileSteps = enabledSteps(page, 'mobile');
-    total += mobileSteps.length;
-    if (page.includesEntry && mobileSteps.some(s => s.captureHamburger)) total += 1; // hamburger
-  }
-  return total;
+function enabledDevices(config) {
+  const devices = Object.keys(DEFAULT_DEVICES).filter(device => resolveDeviceConfig(config, device).enabled !== false);
+  if (!devices.length) throw new Error('Enable at least one capture device');
+  return devices;
 }
 
-/**
- * Return enabled steps for the given device, respecting `includeMobile` and
- * `mobileOnly` / `desktopOnly` flags.
- */
-function enabledSteps(pageCfg, device) {
-  return (pageCfg.steps ?? []).filter(step => {
-    if (!step.enabled) return false;
-    if (step.mobileOnly  && device === 'desktop') return false;
-    if (step.desktopOnly && device === 'mobile')  return false;
+function enabledSteps(pageConfig, device) {
+  return (pageConfig.steps ?? []).filter(step => {
+    if (step.enabled !== true) return false;
+    if (step.mobileOnly && device !== 'mobile') return false;
+    if (step.desktopOnly && device !== 'desktop') return false;
     if (device === 'mobile' && step.includeMobile === false) return false;
     return true;
   });
+}
+
+function countTotalCaptures(config) {
+  return enabledDevices(config).reduce((total, device) => total + config.pages.reduce((pageTotal, pageConfig) => {
+    if (pageConfig.enabled === false) return pageTotal;
+    return pageTotal + enabledSteps(pageConfig, device).length;
+  }, 0), 0);
+}
+
+function toUrl(baseUrl, target = '/') {
+  return new URL(target, baseUrl).toString();
+}
+
+function sameTarget(current, expected) {
+  try {
+    const left = new URL(current);
+    const right = new URL(expected);
+    return left.origin === right.origin && left.pathname === right.pathname && left.search === right.search;
+  } catch {
+    return current === expected;
+  }
+}
+
+function sanitizeName(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100) || 'capture';
+}
+
+function validateConfig(config) {
+  if (!config || typeof config !== 'object') throw new Error('Invalid capture configuration');
+  if (!config.baseUrl) throw new Error('Capture configuration requires baseUrl');
+  if (!Array.isArray(config.pages) || !config.pages.length) {
+    throw new Error('Capture configuration requires at least one page');
+  }
 }

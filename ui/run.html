@@ -1,899 +1,490 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SiteSnap — Configure Run</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SiteSnap · Configure capture</title>
   <style>
     :root {
-      --primary:    #6366f1;
-      --primary-dk: #4f46e5;
-      --green:      #10b981;
-      --green-dk:   #059669;
-      --border:     #e5e7eb;
-      --bg:         #f4f5f7;
-      --surface:    #fff;
-      --text:       #111827;
-      --muted:      #6b7280;
-      --header-h:   58px;
-      --sidebar-w:  220px;
+      --navy: #102b3a;
+      --navy-2: #1b4254;
+      --lime: #72d44b;
+      --lime-dark: #3f9d2a;
+      --ink: #172b36;
+      --muted: #6d7f88;
+      --line: #dce5e7;
+      --paper: #f3f7f6;
+      --white: #fff;
+      --blue: #3b82f6;
+      --amber: #c47b0a;
+      --danger: #b43d3d;
+      --sidebar: 270px;
     }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    /* ── Header ── */
-    .header {
-      position: fixed; top: 0; left: 0; right: 0;
-      height: var(--header-h);
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center;
-      padding: 0 24px; gap: 16px;
-      z-index: 100;
-    }
-
-    .header-logo {
-      display: flex; align-items: center; gap: 8px;
-      text-decoration: none; color: var(--text);
-    }
-    .header-logo span {
-      font-size: 15px; font-weight: 700; letter-spacing: -.3px;
-    }
-
-    .header-divider {
-      width: 1px; height: 20px; background: var(--border);
-    }
-
-    .header-site {
-      font-size: 14px; font-weight: 600; color: var(--text);
-      flex: 1;
-    }
-
-    .btn-capture {
-      padding: 8px 20px;
-      background: var(--primary);
-      color: #fff;
-      font-size: 13px; font-weight: 600;
-      border: none; border-radius: 8px;
-      cursor: pointer;
-      transition: background .15s;
-    }
-    .btn-capture:hover:not(:disabled) { background: var(--primary-dk); }
-    .btn-capture:disabled { opacity: .5; cursor: not-allowed; }
-
-    /* ── Layout ── */
-    .layout {
-      display: flex;
-      margin-top: var(--header-h);
-      min-height: calc(100vh - var(--header-h));
-    }
-
-    /* ── Sidebar ── */
-    .sidebar {
-      width: var(--sidebar-w);
-      flex-shrink: 0;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      padding: 16px 0;
-      position: sticky;
-      top: var(--header-h);
-      height: calc(100vh - var(--header-h));
-      overflow-y: auto;
-    }
-
-    .site-thumb {
-      display: block;
-      width: calc(100% - 32px);
-      margin: 0 16px 16px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      object-fit: cover;
-    }
-
-    .sidebar-label {
-      font-size: 10px; font-weight: 700; letter-spacing: .08em;
-      text-transform: uppercase; color: var(--muted);
-      padding: 0 16px 10px;
-    }
-
-    .nav-row {
-      display: flex; align-items: center;
-      border-left: 3px solid transparent;
-      transition: background .12s;
-    }
-    .nav-row:hover { background: rgba(0,0,0,.03); }
-    .nav-row.active {
-      border-left-color: var(--primary);
-      background: rgba(99,102,241,.06);
-    }
-    .nav-row.is-disabled { opacity: .45; }
-
-    .nav-item {
-      flex: 1; min-width: 0;
-      padding: 9px 6px 9px 13px;
-      text-align: left; background: none; border: none;
-      font-size: 13px; font-weight: 500; color: var(--muted);
-      cursor: pointer; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis;
-      transition: color .12s;
-    }
-    .nav-row:hover .nav-item { color: var(--text); }
-    .nav-row.active .nav-item {
-      color: var(--primary);
-      font-weight: 600;
-    }
-
-    .nav-toggle {
-      flex-shrink: 0; padding: 0 10px 0 4px;
-      background: none; border: none; cursor: pointer;
-      display: flex; align-items: center;
-    }
-    /* reuse toggle-switch styles at smaller size */
-    .nav-toggle .toggle-switch { width: 28px; height: 16px; }
-    .nav-toggle .toggle-track::after { width: 10px; height: 10px; left: 3px; top: 3px; }
-    .nav-toggle .toggle-switch input:checked ~ .toggle-track::after { transform: translateX(12px); }
-
-    /* ── Step list ── */
-    .step-list {
-      flex: 1; padding: 24px;
-      display: flex; flex-direction: column; gap: 12px;
-      min-width: 0;
-    }
-
-    .page-heading {
-      font-size: 17px; font-weight: 700; color: var(--text);
-      margin-bottom: 4px;
-    }
-    .page-subheading {
-      font-size: 12px; color: var(--muted);
-      margin-bottom: 16px;
-    }
-
-    /* ── Step card ── */
-    .step-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 18px;
-      transition: opacity .15s;
-    }
-    .step-card.is-disabled {
-      opacity: .45;
-    }
-    .step-card.is-disabled > *:not(.step-header) {
-      pointer-events: none;
-    }
-
-    .step-header {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 6px;
-    }
-
-    .step-label {
-      font-size: 13px; font-weight: 600; color: var(--text);
-      flex: 1;
-    }
-
-    .mode-badge {
-      display: inline-block; padding: 2px 8px;
-      border-radius: 999px; font-size: 11px; font-weight: 600;
-      flex-shrink: 0;
-    }
-    .mode-badge.viewport  { background: #ede9fe; color: #6d28d9; }
-    .mode-badge.full-page { background: #dbeafe; color: #1e40af; }
-
-    .step-desc {
-      font-size: 12px; color: var(--muted);
-      margin-bottom: 12px; line-height: 1.5;
-    }
-
-    /* Toggle switch */
-    .toggle-switch {
-      position: relative; width: 34px; height: 19px; flex-shrink: 0;
-    }
-    .toggle-switch input {
-      opacity: 0; width: 0; height: 0; position: absolute;
-    }
-    .toggle-track {
-      position: absolute; inset: 0;
-      background: #d1d5db; border-radius: 999px;
-      cursor: pointer; transition: background .2s;
-    }
-    .toggle-switch input:checked ~ .toggle-track { background: var(--primary); }
-    .toggle-track::after {
-      content: ''; position: absolute;
-      width: 13px; height: 13px; border-radius: 50%;
-      background: #fff; left: 3px; top: 3px;
-      transition: transform .2s;
-      box-shadow: 0 1px 3px rgba(0,0,0,.2);
-    }
-    .toggle-switch input:checked ~ .toggle-track::after { transform: translateX(15px); }
-
-    /* Dimensions */
-    .dims-section {
-      display: flex; flex-direction: column; gap: 8px;
-      margin-bottom: 12px;
-    }
-    .dim-row {
-      display: flex; align-items: center; gap: 8px;
-    }
-    .dim-icon {
-      font-size: 13px; width: 20px; text-align: center; flex-shrink: 0;
-    }
-    .dim-label {
-      font-size: 12px; color: var(--muted); width: 52px; flex-shrink: 0;
-    }
-    .dim-input {
-      width: 64px; padding: 5px 8px;
-      border: 1px solid var(--border); border-radius: 6px;
-      font-size: 12px; color: var(--text); text-align: center;
-      outline: none;
-    }
-    .dim-input:focus { border-color: var(--primary); }
-    .dim-sep { font-size: 12px; color: var(--muted); }
-
-    /* Editable action fields */
-    .actions-section {
-      margin-bottom: 12px;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .action-row {
-      display: flex; align-items: center; gap: 10px;
-    }
-    .action-label {
-      font-size: 12px; color: var(--muted);
-      width: 120px; flex-shrink: 0;
-    }
-    .action-input {
-      flex: 1; padding: 5px 10px;
-      border: 1px solid var(--border); border-radius: 6px;
-      font-size: 13px; color: var(--text);
-      outline: none;
-    }
-    .action-input:focus { border-color: var(--primary); }
-
-    /* Step footer */
-    .step-footer {
-      display: flex; align-items: center; gap: 8px;
-      border-top: 1px solid #f3f4f6;
-      padding-top: 10px; margin-top: 4px;
-    }
-    .incl-label {
-      font-size: 12px; color: var(--muted);
-      display: flex; align-items: center; gap: 6px;
-      cursor: pointer;
-    }
-    .incl-label input[type="checkbox"] {
-      width: 14px; height: 14px; accent-color: var(--primary);
-      cursor: pointer;
-    }
-    .mobile-only-badge {
-      font-size: 11px; color: var(--primary);
-      background: rgba(99,102,241,.1);
-      padding: 2px 7px; border-radius: 999px;
-    }
-
-    /* Empty / loading states */
-    .empty {
-      font-size: 13px; color: var(--muted);
-      padding: 32px; text-align: center;
-    }
-    .skeleton {
-      height: 100px; background: linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.2s infinite;
-      border-radius: 10px;
-    }
-    @keyframes shimmer { to { background-position: -200% 0; } }
-
-    /* ── Progress overlay ── */
-    .overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.45);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 200;
-    }
-    .overlay.hidden { display: none; }
-
-    .overlay-card {
-      background: var(--surface);
-      border-radius: 14px;
-      padding: 24px 28px;
-      width: 520px;
-      text-align: left;
-      box-shadow: 0 8px 40px rgba(0,0,0,.2);
-    }
-
-    .overlay-header {
-      display: flex; align-items: center; gap: 14px;
-      margin-bottom: 14px;
-    }
-
-    .spinner {
-      width: 28px; height: 28px; flex-shrink: 0;
-      border: 3px solid #e5e7eb;
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-    }
+    * { box-sizing: border-box; }
+    html { min-width: 320px; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 14px/1.45 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .topbar { position: sticky; top: 0; z-index: 50; height: 68px; display: flex; align-items: center; gap: 16px; padding: 0 24px; color: white; background: rgba(16,43,58,.97); border-bottom: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(18px); }
+    .brand { display: flex; align-items: center; gap: 10px; color: white; text-decoration: none; }
+    .brand-mark { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--lime); color: var(--navy); }
+    .brand strong { letter-spacing: -.03em; }
+    .top-divider { width: 1px; height: 24px; background: rgba(255,255,255,.18); }
+    .project-title { min-width: 0; flex: 1; }
+    .project-title strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-title span { display: block; color: #9fb4bd; font-size: 11px; }
+    .capture-button { border: 0; border-radius: 11px; padding: 10px 17px; background: var(--lime); color: var(--navy); font-weight: 800; cursor: pointer; box-shadow: 0 8px 22px rgba(79,177,44,.18); }
+    .capture-button:hover { background: #86e25f; }
+    .capture-button:disabled { opacity: .45; cursor: not-allowed; }
+    .app { display: grid; grid-template-columns: var(--sidebar) minmax(0,1fr); min-height: calc(100vh - 68px); }
+    .sidebar { position: sticky; top: 68px; height: calc(100vh - 68px); overflow: auto; border-right: 1px solid var(--line); background: #eef4f2; padding: 18px 14px; }
+    .preview { width: 100%; height: 118px; object-fit: cover; object-position: top; display: block; border-radius: 12px; border: 1px solid #cfdbde; background: #dfe9e6; }
+    .target-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 9px 4px 22px; color: var(--muted); text-decoration: none; font-size: 11px; }
+    .target-link:hover { color: var(--ink); }
+    .sidebar-label { margin: 0 8px 8px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .page-nav { display: grid; gap: 5px; }
+    .page-row { display: flex; align-items: center; gap: 7px; border-radius: 10px; padding: 4px 5px 4px 3px; border: 1px solid transparent; }
+    .page-row.active { background: var(--white); border-color: var(--line); box-shadow: 0 5px 16px rgba(16,43,58,.06); }
+    .page-row.disabled { opacity: .48; }
+    .page-button { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 7px; cursor: pointer; }
+    .page-button strong, .page-button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .page-button strong { font-size: 12px; }
+    .page-button small { color: var(--muted); font-size: 10px; margin-top: 1px; }
+    .workspace { min-width: 0; }
+    .controls { position: sticky; top: 68px; z-index: 35; display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center; padding: 15px 24px; background: rgba(243,247,246,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(14px); }
+    .preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .preset { border: 1px solid #ccd9dc; border-radius: 999px; background: var(--white); padding: 7px 11px; font-size: 11px; font-weight: 700; cursor: pointer; }
+    .preset:hover { border-color: #9eb4ba; }
+    .preset.primary { color: var(--navy); background: #e4f7dd; border-color: #bde5ae; }
+    .search { width: min(220px, 28vw); border: 1px solid #ccd9dc; border-radius: 999px; background: var(--white); padding: 7px 12px; outline: none; font-size: 12px; }
+    .search:focus { border-color: var(--lime-dark); box-shadow: 0 0 0 3px rgba(63,157,42,.1); }
+    .device-row { display: flex; gap: 8px; }
+    .device { display: flex; align-items: center; gap: 8px; border: 1px solid #ccd9dc; border-radius: 11px; background: var(--white); padding: 6px 9px; }
+    .device.disabled { opacity: .5; }
+    .device-name { font-size: 11px; font-weight: 800; }
+    .mini-input { width: 54px; padding: 4px 5px; border: 1px solid var(--line); border-radius: 6px; text-align: center; color: var(--ink); font-size: 11px; }
+    .mini-select { padding: 4px 22px 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: white; font-size: 11px; }
+    .content { padding: 28px 30px 80px; max-width: 1240px; margin: 0 auto; }
+    .page-head { display: flex; align-items: start; gap: 18px; margin-bottom: 24px; }
+    .page-head-copy { flex: 1; min-width: 0; }
+    .page-head h1 { margin: 0 0 5px; font: 500 30px/1.15 Georgia, "Times New Roman", serif; letter-spacing: -.035em; }
+    .page-head p { margin: 0; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; word-break: break-all; }
+    .page-switch { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .group { margin-bottom: 26px; }
+    .group-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .group-head h2 { margin: 0; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
+    .group-line { flex: 1; height: 1px; background: var(--line); }
+    .group-toggle { border: 0; background: none; color: var(--muted); font-size: 10px; cursor: pointer; }
+    .card-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+    .step-card { border: 1px solid var(--line); border-radius: 15px; background: var(--white); padding: 16px; box-shadow: 0 4px 16px rgba(16,43,58,.025); transition: opacity .15s, border-color .15s; }
+    .step-card.off { opacity: .52; box-shadow: none; }
+    .step-card:hover { border-color: #c2d1d5; }
+    .step-head { display: flex; align-items: start; gap: 10px; }
+    .step-copy { flex: 1; min-width: 0; }
+    .step-copy h3 { margin: 1px 0 3px; font-size: 13px; }
+    .step-copy p { margin: 0; color: var(--muted); font-size: 11px; min-height: 32px; }
+    .mode { border: 1px solid #d3dfe1; border-radius: 8px; background: #f8fbfa; padding: 5px 24px 5px 7px; font-size: 10px; font-weight: 800; color: var(--navy); }
+    .step-options { display: grid; gap: 9px; border-top: 1px solid #edf1f2; margin-top: 13px; padding-top: 12px; }
+    .option-row { display: flex; align-items: center; gap: 8px; }
+    .option-label { width: 88px; flex-shrink: 0; color: var(--muted); font-size: 10px; font-weight: 700; }
+    .option-input { flex: 1; min-width: 0; border: 1px solid #d4dfe1; border-radius: 8px; padding: 7px 9px; background: white; color: var(--ink); font-size: 11px; outline: none; }
+    .option-input:focus { border-color: var(--lime-dark); box-shadow: 0 0 0 3px rgba(63,157,42,.09); }
+    .dims { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; }
+    .dims .mini-input { width: 58px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; }
+    .check-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; cursor: pointer; }
+    input[type="checkbox"] { accent-color: var(--lime-dark); }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 7px; background: #edf3f5; color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+    .toggle { position: relative; width: 34px; height: 19px; flex-shrink: 0; }
+    .toggle input { position: absolute; opacity: 0; }
+    .toggle span { position: absolute; inset: 0; border-radius: 999px; background: #c8d2d5; cursor: pointer; transition: .18s; }
+    .toggle span::after { content: ''; position: absolute; width: 13px; height: 13px; top: 3px; left: 3px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.22); transition: .18s; }
+    .toggle input:checked + span { background: var(--lime-dark); }
+    .toggle input:checked + span::after { transform: translateX(15px); }
+    .empty { padding: 48px; border: 1px dashed #c7d5d8; border-radius: 15px; text-align: center; color: var(--muted); background: rgba(255,255,255,.45); }
+    .skeleton { height: 140px; border-radius: 15px; background: linear-gradient(100deg,#e5ecea 20%,#f5f8f7 45%,#e5ecea 70%); background-size: 220% 100%; animation: shimmer 1.3s infinite; }
+    @keyframes shimmer { to { background-position: -220% 0; } }
+    .modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(8,28,38,.72); backdrop-filter: blur(7px); }
+    .modal.hidden { display: none; }
+    .run-panel { width: min(720px,100%); max-height: min(780px,calc(100vh - 48px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; background: var(--white); box-shadow: 0 28px 100px rgba(0,0,0,.35); }
+    .run-head { display: flex; align-items: center; gap: 13px; padding: 20px 22px; color: white; background: var(--navy); }
+    .spinner { width: 27px; height: 27px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: var(--lime); animation: spin .75s linear infinite; }
     .spinner.hidden { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    .overlay-title {
-      font-size: 15px; font-weight: 700; margin-bottom: 2px;
-    }
-    .overlay-status {
-      font-size: 12px; color: var(--muted);
-      font-family: ui-monospace, monospace;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      max-width: 360px;
-    }
-
-    /* Progress bar */
-    .progress-wrap { margin-bottom: 12px; }
-    .progress-bar {
-      height: 4px; background: #e5e7eb; border-radius: 999px; overflow: hidden;
-      margin-bottom: 5px;
-    }
-    .progress-fill {
-      height: 100%; background: var(--primary); border-radius: 999px;
-      width: 0%; transition: width .4s ease;
-    }
-    .progress-label { font-size: 11px; color: var(--muted); }
-
-    /* Capture list */
-    .capture-list {
-      max-height: 300px; overflow-y: auto;
-      border: 1px solid var(--border); border-radius: 8px;
-      margin-bottom: 14px;
-    }
-    .capture-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-    }
-    .capture-row:last-child { border-bottom: none; }
-    .capture-thumb {
-      width: 150px; height: 84px;
-      object-fit: cover; object-position: top;
-      border-radius: 4px; background: #f3f4f6;
-      flex-shrink: 0; display: block;
-    }
-    .capture-label {
-      font-size: 12px; color: var(--text);
-      font-family: ui-monospace, monospace;
-      word-break: break-all; line-height: 1.5;
-    }
-
-    .btn-dl {
-      display: none; width: 100%;
-      padding: 10px; background: var(--green); color: #fff;
-      font-size: 14px; font-weight: 600;
-      border: none; border-radius: 8px;
-      cursor: pointer; text-decoration: none;
-      transition: background .15s;
-      margin-top: 4px; text-align: center;
-    }
-    .btn-dl:hover { background: var(--green-dk); }
-
-    .overlay-error {
-      font-size: 13px; color: #dc2626;
-      background: #fef2f2; border: 1px solid #fecaca;
-      border-radius: 6px; padding: 8px 12px;
-      margin-bottom: 12px; display: none;
-    }
-
-    .btn-close-overlay {
-      display: none; margin-top: 10px; width: 100%;
-      background: none; border: none;
-      font-size: 13px; color: var(--muted);
-      cursor: pointer; text-decoration: underline; text-align: center;
-    }
+    .run-copy { flex: 1; min-width: 0; }
+    .run-copy strong, .run-copy span { display: block; }
+    .run-copy span { color: #afc2ca; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .progress { height: 5px; background: #e8eeec; }
+    .progress > div { height: 100%; width: 0; background: var(--lime); transition: width .25s; }
+    .run-meta { display: flex; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .captures { min-height: 160px; overflow: auto; padding: 12px; display: grid; gap: 8px; }
+    .capture-row { display: grid; grid-template-columns: 132px 1fr; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 11px; }
+    .capture-row img { width: 132px; height: 76px; border-radius: 7px; object-fit: cover; object-position: top; background: #e9efed; }
+    .capture-row strong { font-size: 11px; }
+    .run-error { display: none; margin: 14px 18px 0; padding: 10px 12px; border: 1px solid #ecc7c7; border-radius: 9px; color: var(--danger); background: #fff5f5; font-size: 12px; }
+    .run-actions { display: flex; gap: 9px; padding: 14px 18px 18px; border-top: 1px solid var(--line); }
+    .run-action { display: none; flex: 1; border: 0; border-radius: 10px; padding: 10px 13px; text-align: center; text-decoration: none; font-weight: 800; cursor: pointer; }
+    .run-action.download { background: var(--lime); color: var(--navy); }
+    .run-action.close { background: #edf2f1; color: var(--ink); }
+    @media (max-width: 1040px) { .controls { grid-template-columns: 1fr; } .device-row { justify-content: flex-start; } }
+    @media (max-width: 820px) { :root { --sidebar: 0px; } .sidebar { display: none; } .card-grid { grid-template-columns: 1fr; } .content { padding: 22px 16px 70px; } .controls { position: static; padding: 13px 16px; } .topbar { padding: 0 15px; } .project-title span { display: none; } .device { flex-wrap: wrap; } }
   </style>
 </head>
 <body>
-
-  <!-- ── Header ── -->
-  <header class="header">
-    <a class="header-logo" href="/">
-      <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="7" fill="#6366f1"/>
-        <rect x="6" y="7" width="16" height="12" rx="2" fill="white" opacity=".9"/>
-        <circle cx="14" cy="13" r="3" fill="#6366f1"/>
-        <rect x="10" y="21" width="8" height="2" rx="1" fill="white" opacity=".6"/>
-      </svg>
-      <span>SiteSnap</span>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="13" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="11.5" r="3" fill="currentColor"/></svg></span>
+      <strong>SiteSnap</strong>
     </a>
-    <div class="header-divider"></div>
-    <div class="header-site" id="header-site">Loading…</div>
-    <button class="btn-capture" id="capture-btn" disabled>Capture All</button>
+    <span class="top-divider"></span>
+    <div class="project-title"><strong id="project-name">Loading…</strong><span id="project-note">Local capture configuration</span></div>
+    <button class="capture-button" id="capture-button" disabled>Capture · 0</button>
   </header>
 
-  <!-- ── Layout ── -->
-  <div class="layout">
-    <nav class="sidebar" id="sidebar">
-      <div class="sidebar-label">Pages</div>
-    </nav>
-    <main class="step-list" id="step-list">
-      <div class="skeleton"></div>
-      <div class="skeleton" style="height:80px"></div>
-    </main>
+  <div class="app">
+    <aside class="sidebar" id="sidebar"><div class="skeleton"></div></aside>
+    <section class="workspace">
+      <div class="controls">
+        <div class="preset-row">
+          <button class="preset primary" data-preset="recommended">Recommended</button>
+          <button class="preset" data-preset="essential">Essential only</button>
+          <button class="preset" data-preset="all">All states</button>
+          <button class="preset" data-preset="clear">Clear</button>
+          <input class="search" id="search" type="search" placeholder="Filter capture states…">
+        </div>
+        <div class="device-row" id="device-row"></div>
+      </div>
+      <main class="content" id="content"><div class="skeleton"></div><div class="skeleton" style="margin-top:12px"></div></main>
+    </section>
   </div>
 
-  <!-- ── Progress overlay ── -->
-  <div class="overlay hidden" id="overlay">
-    <div class="overlay-card">
-      <div class="overlay-header">
-        <div class="spinner" id="ov-spinner"></div>
-        <div style="min-width:0">
-          <div class="overlay-title" id="ov-title">Running…</div>
-          <div class="overlay-status" id="ov-status">Starting up</div>
-        </div>
-      </div>
-      <div class="progress-wrap" id="ov-progress-wrap">
-        <div class="progress-bar"><div class="progress-fill" id="ov-progress-fill"></div></div>
-        <div class="progress-label" id="ov-progress-label">0 of 0</div>
-      </div>
-      <div class="capture-list" id="ov-captures"></div>
-      <div class="overlay-error" id="ov-error"></div>
-      <a class="btn-dl" id="ov-dl" href="#">Download ZIP</a>
-      <button class="btn-close-overlay" id="ov-close">Close</button>
-    </div>
+  <div class="modal hidden" id="run-modal" role="dialog" aria-modal="true" aria-labelledby="run-title">
+    <section class="run-panel">
+      <div class="run-head"><div class="spinner" id="spinner"></div><div class="run-copy"><strong id="run-title">Capturing Nuveen</strong><span id="run-status">Starting Chromium…</span></div></div>
+      <div class="progress"><div id="progress-fill"></div></div>
+      <div class="run-meta"><span id="progress-label">0 of 0</span><span>Desktop and mobile run in parallel</span></div>
+      <div class="run-error" id="run-error"></div>
+      <div class="captures" id="captures"><div class="empty">Screenshots will appear here as they complete.</div></div>
+      <div class="run-actions"><a class="run-action download" id="download" href="#">Download ZIP</a><button class="run-action close" id="close-modal">Close</button></div>
+    </section>
   </div>
 
   <script>
-    // ── State ────────────────────────────────────────────────────────────────
+    const ESSENTIAL_IDS = new Set([
+      'hero-nhmrx', 'performance-quarterly', 'tey-sample',
+      'distributions-since-inception', 'characteristics-maturity'
+    ]);
+
     const state = {
-      siteId:        null,
-      siteName:      '',
-      credentials:   { username: '', password: '' },
-      config:        null,
-      activePage:    0,
-      pollTimer:     null,
-      pollStarted:   null,
-      jobId:         null,
-      renderedCount: 0,
+      siteId: '', site: null, config: null, defaults: null,
+      activePage: 0, query: '', pollTimer: null, jobId: null, rendered: 0, running: false,
     };
 
-    // ── Boot ─────────────────────────────────────────────────────────────────
     async function boot() {
-      const params = new URLSearchParams(window.location.search);
-      state.siteId = params.get('site');
-
-      const username = sessionStorage.getItem('ss_username');
-      const password = sessionStorage.getItem('ss_password');
-
-      const requiresCredentials = sessionStorage.getItem('ss_requires_credentials') !== '0';
-      if (!state.siteId || (requiresCredentials && (!username || !password))) {
-        window.location.href = '/';
-        return;
-      }
-
-      state.credentials = { username, password };
-
+      state.siteId = new URLSearchParams(location.search).get('site') || '';
+      if (!state.siteId) { location.href = '/'; return; }
       try {
-        const [config, sites] = await Promise.all([
-          fetch(`/api/config/${state.siteId}`).then(r => r.json()),
-          fetch('/api/sites').then(r => r.json()),
+        const [configResponse, sitesResponse] = await Promise.all([
+          fetch(`/api/config/${encodeURIComponent(state.siteId)}`), fetch('/api/sites')
         ]);
-
-        if (config.error) throw new Error(config.error);
-
-        state.config    = deepClone(config);
-        const siteInfo  = sites.find(s => s.id === state.siteId) ?? {};
-        state.siteName  = siteInfo.name ?? state.siteId;
-        state.imageUrl  = siteInfo.imageUrl ?? null;
-
-        document.getElementById('header-site').textContent = state.siteName;
-        document.getElementById('capture-btn').disabled = false;
-
-        renderSidebar();
-        renderPage(0);
-      } catch (err) {
-        document.getElementById('step-list').innerHTML =
-          `<div class="empty">Failed to load config: ${escHtml(err.message)}</div>`;
+        const config = await configResponse.json();
+        const sites = await sitesResponse.json();
+        if (!configResponse.ok) throw new Error(config.error || `HTTP ${configResponse.status}`);
+        state.site = sites.find(site => site.id === state.siteId) || { name: state.siteId };
+        state.config = clone(config);
+        state.defaults = clone(config);
+        document.getElementById('project-name').textContent = state.site.name;
+        document.getElementById('project-note').textContent = state.site.description || 'Local capture configuration';
+        bindStaticEvents();
+        renderAll();
+        document.getElementById('capture-button').disabled = false;
+      } catch (error) {
+        document.getElementById('content').innerHTML = `<div class="empty">Unable to load configuration: ${escapeHtml(error.message)}</div>`;
       }
     }
 
-    // ── Sidebar ──────────────────────────────────────────────────────────────
+    function bindStaticEvents() {
+      document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => applyPreset(button.dataset.preset)));
+      document.getElementById('search').addEventListener('input', event => { state.query = event.target.value.trim().toLowerCase(); renderPage(); });
+      document.getElementById('capture-button').addEventListener('click', startCapture);
+      document.getElementById('close-modal').addEventListener('click', closeModal);
+      document.getElementById('run-modal').addEventListener('click', event => { if (event.target === event.currentTarget && !state.pollTimer) closeModal(); });
+      window.addEventListener('beforeunload', stopPoll);
+    }
+
+    function renderAll() {
+      renderDevices();
+      renderSidebar();
+      renderPage();
+      updateSummary();
+    }
+
+    function renderDevices() {
+      const row = document.getElementById('device-row');
+      row.innerHTML = '';
+      ['desktop', 'mobile'].forEach(name => {
+        const device = state.config.devices[name];
+        const card = node('div', { class: `device${device.enabled === false ? ' disabled' : ''}` });
+        const enabled = node('input', { type: 'checkbox' }); enabled.checked = device.enabled !== false;
+        enabled.addEventListener('change', () => {
+          const other = name === 'desktop' ? 'mobile' : 'desktop';
+          if (!enabled.checked && state.config.devices[other].enabled === false) { enabled.checked = true; return; }
+          device.enabled = enabled.checked; renderAll();
+        });
+        card.append(enabled, node('span', { class: 'device-name', text: name === 'desktop' ? 'Desktop' : 'Mobile' }));
+        const width = miniNumber(device.viewport.width, value => { device.viewport.width = value; updateSummary(); });
+        const height = miniNumber(device.viewport.height, value => { device.viewport.height = value; updateSummary(); });
+        const scale = node('select', { class: 'mini-select' });
+        [['1','1×'],['2','2×']].forEach(([value,label]) => { const option = node('option', { value, text: label }); option.selected = Number(device.deviceScaleFactor) === Number(value); scale.appendChild(option); });
+        scale.addEventListener('change', () => { device.deviceScaleFactor = Number(scale.value); });
+        card.append(width, node('span', { text: '×' }), height, scale);
+        row.appendChild(card);
+      });
+    }
+
     function renderSidebar() {
-      const nav = document.getElementById('sidebar');
-      const thumb = state.imageUrl
-        ? `<img class="site-thumb" src="${state.imageUrl}" alt="${escHtml(state.siteName)}">`
-        : '';
-      nav.innerHTML = `${thumb}<div class="sidebar-label">Pages</div>`;
-
-      state.config.pages.forEach((page, i) => {
-        const enabled = page.enabled !== false;
-
-        const toggleInput = el('input', { type: 'checkbox', ...(enabled ? { checked: '' } : {}) });
-        const toggleLabel = el('label', { class: 'toggle-switch' },
-          toggleInput,
-          el('span', { class: 'toggle-track' })
-        );
-        const toggleBtn = el('button', { class: 'nav-toggle', title: 'Enable / disable page' }, toggleLabel);
-
-        const navBtn = el('button', { class: 'nav-item' }, page.label);
-
-        const row = el('div', { class: 'nav-row' + (i === 0 ? ' active' : '') + (enabled ? '' : ' is-disabled') });
-        row.appendChild(navBtn);
-        row.appendChild(toggleBtn);
-
-        navBtn.addEventListener('click', () => {
-          document.querySelectorAll('.nav-row').forEach(r => r.classList.remove('active'));
-          row.classList.add('active');
-          state.activePage = i;
-          renderPage(i);
-        });
-
-        toggleInput.addEventListener('change', () => {
-          const on = toggleInput.checked;
-          patchPage(i, { enabled: on });
-          row.classList.toggle('is-disabled', !on);
-        });
-
-        nav.appendChild(row);
+      const sidebar = document.getElementById('sidebar');
+      sidebar.innerHTML = '';
+      if (state.site.imageUrl) sidebar.appendChild(node('img', { class: 'preview', src: state.site.imageUrl, alt: `${state.site.name} preview` }));
+      if (state.site.primaryUrl) sidebar.appendChild(node('a', { class: 'target-link', href: state.site.primaryUrl, target: '_blank' }, 'Open live target', '↗'));
+      sidebar.appendChild(node('div', { class: 'sidebar-label', text: 'Capture pages' }));
+      const nav = node('nav', { class: 'page-nav' });
+      state.config.pages.forEach((page, index) => {
+        const row = node('div', { class: `page-row${index === state.activePage ? ' active' : ''}${page.enabled === false ? ' disabled' : ''}` });
+        const button = node('button', { class: 'page-button' }, node('strong', { text: page.label }), node('small', { text: `${enabledOnPage(page)} selected` }));
+        button.addEventListener('click', () => { state.activePage = index; renderSidebar(); renderPage(); });
+        const toggle = toggleControl(page.enabled !== false, checked => { page.enabled = checked; renderAll(); });
+        row.append(button, toggle); nav.appendChild(row);
       });
+      sidebar.appendChild(nav);
     }
 
-    // ── Page / steps ─────────────────────────────────────────────────────────
-    function renderPage(pageIndex) {
-      const page  = state.config.pages[pageIndex];
-      const list  = document.getElementById('step-list');
-      list.innerHTML = '';
+    function renderPage() {
+      const content = document.getElementById('content');
+      const page = state.config.pages[state.activePage];
+      if (!page) { content.innerHTML = '<div class="empty">No page selected.</div>'; return; }
+      content.innerHTML = '';
+      const head = node('div', { class: 'page-head' },
+        node('div', { class: 'page-head-copy' }, node('h1', { text: page.label }), node('p', { text: page.path })),
+        node('label', { class: 'page-switch' }, 'Page enabled ', toggleControl(page.enabled !== false, checked => { page.enabled = checked; renderAll(); }))
+      );
+      content.appendChild(head);
 
-      const heading = el('div', { class: 'page-heading', text: page.label });
-      const sub     = page.path
-        ? el('div', { class: 'page-subheading', text: page.path })
-        : el('div', { class: 'page-subheading', text: page.type === 'external' ? 'External capture' : '' });
-      list.appendChild(heading);
-      list.appendChild(sub);
-
-      if (!page.steps?.length) {
-        list.appendChild(el('div', { class: 'empty', text: 'No steps configured for this page.' }));
-        return;
-      }
-
-      page.steps.forEach((step, stepIndex) => {
-        list.appendChild(renderStepCard(step, pageIndex, stepIndex));
+      const groups = new Map();
+      page.steps.forEach((step, index) => {
+        const haystack = `${step.label} ${step.description || ''} ${step.group || ''}`.toLowerCase();
+        if (state.query && !haystack.includes(state.query)) return;
+        const group = step.group || 'Capture states';
+        if (!groups.has(group)) groups.set(group, []);
+        groups.get(group).push({ step, index });
       });
+
+      if (!groups.size) { content.appendChild(node('div', { class: 'empty', text: 'No capture states match this filter.' })); return; }
+      for (const [groupName, entries] of groups) {
+        const section = node('section', { class: 'group' });
+        const allOn = entries.every(({ step }) => step.enabled === true);
+        const groupToggle = node('button', { class: 'group-toggle', text: allOn ? 'Disable group' : 'Enable group' });
+        groupToggle.addEventListener('click', () => { entries.forEach(({ step }) => { step.enabled = !allOn; }); renderAll(); });
+        section.appendChild(node('div', { class: 'group-head' }, node('h2', { text: groupName }), node('span', { class: 'group-line' }), groupToggle));
+        const grid = node('div', { class: 'card-grid' });
+        entries.forEach(({ step, index }) => grid.appendChild(renderStepCard(page, step, index)));
+        section.appendChild(grid); content.appendChild(section);
+      }
     }
 
-    // ── Step card ────────────────────────────────────────────────────────────
-    function renderStepCard(step, pageIndex, stepIndex) {
-      const card = el('div', { class: 'step-card' + (step.enabled ? '' : ' is-disabled') });
+    function renderStepCard(page, step, stepIndex) {
+      const card = node('article', { class: `step-card${step.enabled === true ? '' : ' off'}` });
+      const toggle = toggleControl(step.enabled === true, checked => { step.enabled = checked; renderAll(); });
+      const mode = node('select', { class: 'mode', 'aria-label': 'Capture mode' });
+      const modes = [['viewport','Viewport'],['fullPage','Full page']];
+      if (step.selector || step.focusSelector) modes.push(['element','Element']);
+      modes.forEach(([value,label]) => { const option = node('option', { value, text: label }); option.selected = (step.captureMode || 'viewport') === value; mode.appendChild(option); });
+      mode.addEventListener('change', () => { step.captureMode = mode.value; renderPage(); updateSummary(); });
+      card.appendChild(node('div', { class: 'step-head' }, toggle, node('div', { class: 'step-copy' }, node('h3', { text: step.label }), node('p', { text: step.description || '' })), mode));
 
-      // Header: toggle + label + mode badge
-      const toggleEl = el('label', { class: 'toggle-switch' },
-        el('input', { type: 'checkbox', ...(step.enabled ? { checked: '' } : {}) }),
-        el('span', { class: 'toggle-track' })
-      );
-      toggleEl.querySelector('input').addEventListener('change', ev => {
-        patchStep(pageIndex, stepIndex, { enabled: ev.target.checked });
-        card.classList.toggle('is-disabled', !ev.target.checked);
-      });
-
-      const modeLabel = step.captureMode === 'fullPage' ? 'Full Page' : 'Viewport';
-      const modeClass = step.captureMode === 'fullPage' ? 'full-page' : 'viewport';
-
-      const header = el('div', { class: 'step-header' },
-        toggleEl,
-        el('span', { class: 'step-label', text: step.label }),
-        el('span', { class: `mode-badge ${modeClass}`, text: modeLabel })
-      );
-      card.appendChild(header);
-
-      // Description
-      if (step.description) {
-        card.appendChild(el('p', { class: 'step-desc', text: step.description }));
-      }
-
-      // Viewport dimension controls
-      if (step.captureMode === 'viewport') {
-        const dims = el('div', { class: 'dims-section' });
-
-        if (step.desktop) {
-          dims.appendChild(dimRow('🖥', 'Desktop', step.desktop, (w, h) => {
-            patchStep(pageIndex, stepIndex, { desktop: { width: w, height: h } });
-          }));
-        }
-        if (step.mobile && step.includeMobile !== false) {
-          dims.appendChild(dimRow('📱', 'Mobile', step.mobile, (w, h) => {
-            patchStep(pageIndex, stepIndex, { mobile: { width: w, height: h } });
-          }));
-        }
-        if (dims.children.length) card.appendChild(dims);
-      }
-
-      // Editable action fields
-      const editableActions = (step.actions ?? [])
-        .map((a, i) => ({ action: a, origIndex: i }))
-        .filter(({ action }) => action.editable && (action.type === 'input' || action.type === 'select'));
-
-      if (editableActions.length) {
-        const section = el('div', { class: 'actions-section' });
-        editableActions.forEach(({ action, origIndex }) => {
-          const input = el('input', {
-            class: 'action-input',
-            type: 'text',
-            value: action.value ?? '',
-          });
-          input.addEventListener('change', () => {
-            patchAction(pageIndex, stepIndex, origIndex, input.value);
-          });
-          section.appendChild(
-            el('div', { class: 'action-row' },
-              el('span', { class: 'action-label', text: action.label }),
-              input
-            )
-          );
+      const options = node('div', { class: 'step-options' });
+      if ((step.captureMode || 'viewport') === 'viewport') {
+        ['desktop','mobile'].forEach(deviceName => {
+          if (deviceName === 'mobile' && step.includeMobile === false) return;
+          const dimensions = step[deviceName] || clone(state.config.devices[deviceName].viewport);
+          step[deviceName] = dimensions;
+          const row = node('div', { class: 'option-row' }, node('span', { class: 'option-label', text: deviceName === 'desktop' ? 'Desktop size' : 'Mobile size' }));
+          const dim = node('div', { class: 'dims' });
+          dim.append(miniNumber(dimensions.width, value => { dimensions.width = value; }), node('span', { text: '×' }), miniNumber(dimensions.height, value => { dimensions.height = value; }));
+          row.appendChild(dim); options.appendChild(row);
         });
-        card.appendChild(section);
       }
 
-      // Footer: include mobile toggle (hidden for mobileOnly steps)
+      (step.actions || []).forEach(action => {
+        if (!action.editable) return;
+        const row = node('label', { class: 'option-row' }, node('span', { class: 'option-label', text: action.label || action.type }));
+        let input;
+        if (Array.isArray(action.options)) {
+          input = node('select', { class: 'option-input' });
+          action.options.forEach(value => { const option = node('option', { value, text: value }); option.selected = value === action.value; input.appendChild(option); });
+        } else {
+          input = node('input', { class: 'option-input', type: 'text', value: action.value ?? '' });
+        }
+        input.addEventListener('change', () => { action.value = input.value; });
+        row.appendChild(input); options.appendChild(row);
+      });
+      if (options.children.length) card.appendChild(options);
+
+      const footer = node('div', { class: 'card-footer' });
       if (!step.mobileOnly) {
-        const cb = el('input', {
-          type: 'checkbox',
-          ...(step.includeMobile !== false ? { checked: '' } : {}),
-        });
-        cb.addEventListener('change', () => {
-          patchStep(pageIndex, stepIndex, { includeMobile: cb.checked });
-        });
-
-        card.appendChild(
-          el('div', { class: 'step-footer' },
-            el('label', { class: 'incl-label' }, cb, '  Include mobile')
-          )
-        );
-      } else {
-        card.appendChild(
-          el('div', { class: 'step-footer' },
-            el('span', { class: 'mobile-only-badge', text: 'Mobile only' })
-          )
-        );
-      }
-
+        const mobile = node('input', { type: 'checkbox' }); mobile.checked = step.includeMobile !== false;
+        mobile.disabled = state.config.devices.mobile.enabled === false;
+        mobile.addEventListener('change', () => { step.includeMobile = mobile.checked; renderAll(); });
+        footer.appendChild(node('label', { class: 'check-label' }, mobile, 'Include mobile'));
+      } else footer.appendChild(node('span', { class: 'badge', text: 'Mobile only' }));
+      if (step.waitFor || step.cleanupActions?.length) footer.appendChild(node('span', { class: 'badge', text: step.cleanupActions?.length ? 'Isolated state' : 'Waits for data' }));
+      card.appendChild(footer);
       return card;
     }
 
-    function dimRow(icon, label, dims, onChange) {
-      const wInput = el('input', { class: 'dim-input', type: 'number', value: dims.width,  min: '320', max: '3840' });
-      const hInput = el('input', { class: 'dim-input', type: 'number', value: dims.height, min: '400', max: '3840' });
-
-      const update = () => {
-        const w = Math.max(320, Math.min(3840, Number(wInput.value) || dims.width));
-        const h = Math.max(400, Math.min(3840, Number(hInput.value) || dims.height));
-        wInput.value = w; hInput.value = h;
-        onChange(w, h);
-      };
-      wInput.addEventListener('change', update);
-      hInput.addEventListener('change', update);
-
-      return el('div', { class: 'dim-row' },
-        el('span', { class: 'dim-icon',  text: icon  }),
-        el('span', { class: 'dim-label', text: label }),
-        wInput,
-        el('span', { class: 'dim-sep', text: '×' }),
-        hInput
-      );
+    function applyPreset(name) {
+      if (name === 'recommended') state.config = clone(state.defaults);
+      if (name === 'essential') {
+        state.config.pages.forEach(page => { page.enabled = true; page.steps.forEach(step => { step.enabled = ESSENTIAL_IDS.has(step.id); }); });
+      }
+      if (name === 'all') state.config.pages.forEach(page => { page.enabled = true; page.steps.forEach(step => { step.enabled = true; }); });
+      if (name === 'clear') state.config.pages.forEach(page => page.steps.forEach(step => { step.enabled = false; }));
+      renderAll();
     }
 
-    // ── State mutations ───────────────────────────────────────────────────────
-    function patchPage(pageIndex, patch) {
-      Object.assign(state.config.pages[pageIndex], patch);
+    function updateSummary() {
+      const total = countCaptures();
+      const button = document.getElementById('capture-button');
+      button.textContent = `Capture · ${total}`;
+      button.disabled = total === 0 || state.running;
     }
 
-    function patchStep(pageIndex, stepIndex, patch) {
-      Object.assign(state.config.pages[pageIndex].steps[stepIndex], patch);
+    function countCaptures() {
+      let total = 0;
+      state.config.pages.forEach(page => {
+        if (page.enabled === false) return;
+        page.steps.forEach(step => {
+          if (step.enabled !== true) return;
+          if (state.config.devices.desktop.enabled !== false && !step.mobileOnly) total += 1;
+          if (state.config.devices.mobile.enabled !== false && !step.desktopOnly && step.includeMobile !== false) total += 1;
+        });
+      });
+      return total;
     }
-
-    function patchAction(pageIndex, stepIndex, actionIndex, value) {
-      state.config.pages[pageIndex].steps[stepIndex].actions[actionIndex].value = value;
-    }
-
-    // ── Capture ───────────────────────────────────────────────────────────────
-    document.getElementById('capture-btn').addEventListener('click', startCapture);
 
     async function startCapture() {
-      document.getElementById('capture-btn').disabled = true;
-      showOverlay('Running…', 'Starting up');
-
-      // Generate UUID client-side so we can start polling immediately even if
-      // the server returns 202 with no body (Netlify background function).
-      const jobId = crypto.randomUUID();
-
+      const total = countCaptures();
+      if (!total) return;
+      state.running = true;
+      state.jobId = crypto.randomUUID(); state.rendered = 0;
+      showRunModal(total);
+      updateSummary();
       try {
-        const res = await fetch('/api/run', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jobId,
-            siteId:   state.siteId,
-            username: state.credentials.username,
-            password: state.credentials.password,
-            config:   state.config,
-          }),
+        const response = await fetch('/api/run', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: state.jobId, siteId: state.siteId, config: state.config })
         });
-        // 200 = local Express, 202 = Netlify background function
-        if (res.ok || res.status === 202) {
-          startPoll(jobId);
-        } else {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `HTTP ${res.status}`);
-        }
-      } catch (err) {
-        overlayError(err.message);
-        document.getElementById('capture-btn').disabled = false;
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+        poll();
+      } catch (error) { showRunError(error.message); }
+    }
+
+    async function poll() {
+      try {
+        const response = await fetch(`/api/status/${encodeURIComponent(state.jobId)}`);
+        const job = await response.json();
+        if (!response.ok) throw new Error(job.error || `HTTP ${response.status}`);
+        if (job.lastLog) document.getElementById('run-status').textContent = job.lastLog;
+        renderCaptures(job.entries || []);
+        const total = job.total || countCaptures();
+        const progress = total ? Math.min(100, Math.round((state.rendered / total) * 100)) : 0;
+        document.getElementById('progress-fill').style.width = `${progress}%`;
+        document.getElementById('progress-label').textContent = `${state.rendered} of ${total}`;
+        if (job.status === 'done') return finishRun(total);
+        if (job.status === 'error') return showRunError(job.error || 'Capture failed.');
+        state.pollTimer = setTimeout(poll, 900);
+      } catch (error) { showRunError(error.message); }
+    }
+
+    function renderCaptures(entries) {
+      const list = document.getElementById('captures');
+      if (state.rendered === 0 && entries.length) list.innerHTML = '';
+      for (let index = state.rendered; index < entries.length; index += 1) {
+        const entry = entries[index];
+        list.appendChild(node('div', { class: 'capture-row' },
+          node('img', { src: `/api/thumbnail/${encodeURIComponent(state.jobId)}/${entry.index}`, alt: '' }),
+          node('strong', { text: entry.label })
+        ));
+        state.rendered += 1;
       }
+      if (entries.length) list.scrollTop = list.scrollHeight;
     }
 
-    function startPoll(id) {
-      state.jobId         = id;
-      state.renderedCount = 0;
-      state.pollStarted   = Date.now();
-      state.pollTimer = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/status/${state.jobId}`);
-
-          // Non-JSON response (function crashed, redirect misconfigured, etc.)
-          const contentType = res.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            // Lambda cold-start can take 40-60s — wait up to 2 minutes before giving up
-            if (Date.now() - state.pollStarted > 120000) {
-              stopPoll();
-              overlayError(`Server error (HTTP ${res.status}). Check Netlify function logs.`);
-              document.getElementById('capture-btn').disabled = false;
-            }
-            return;
-          }
-
-          const job = await res.json();
-
-          // Job not created yet (background function still cold-starting — keep waiting)
-          if (!job || !job.status) return;
-
-          // 'pending' = background function started but hasn't written to Blobs yet.
-          // Give it up to 90s; after that something is genuinely wrong.
-          if (job.status === 'pending') {
-            document.getElementById('ov-status').textContent = job.lastLog || 'Warming up…';
-            if (Date.now() - state.pollStarted > 90000) {
-              stopPoll();
-              overlayError('Lambda did not start within 90s. Check Netlify function logs.');
-              document.getElementById('capture-btn').disabled = false;
-            }
-            return;
-          }
-
-          // Status text (latest plain log line)
-          if (job.lastLog) {
-            document.getElementById('ov-status').textContent = job.lastLog.trim();
-          }
-
-          // Add new capture rows
-          const captureList = document.getElementById('ov-captures');
-          const entries = job.entries ?? [];
-          for (let i = state.renderedCount; i < entries.length; i++) {
-            const entry = entries[i];
-            const img = el('img', {
-              class: 'capture-thumb',
-              src:   `/api/thumbnail/${state.jobId}/${entry.index}`,
-              alt:   '',
-            });
-            const row = el('div', { class: 'capture-row' },
-              img,
-              el('span', { class: 'capture-label', text: entry.label.trim() })
-            );
-            captureList.appendChild(row);
-            captureList.scrollTop = captureList.scrollHeight;
-            state.renderedCount++;
-          }
-
-          // Update progress bar
-          const total = job.total ?? 0;
-          if (total > 0) {
-            const pct = Math.min(100, Math.round((state.renderedCount / total) * 100));
-            document.getElementById('ov-progress-fill').style.width = pct + '%';
-            document.getElementById('ov-progress-label').textContent =
-              `${state.renderedCount} of ${total}`;
-          }
-
-          if (job.status === 'done') {
-            stopPoll();
-            document.getElementById('ov-progress-fill').style.width = '100%';
-            document.getElementById('ov-progress-label').textContent =
-              `${state.renderedCount} of ${total}`;
-            const dl = document.getElementById('ov-dl');
-            dl.href          = `/api/download/${state.jobId}`;
-            dl.style.display = 'block';
-            document.getElementById('ov-spinner').classList.add('hidden');
-            document.getElementById('ov-title').textContent  = 'Done!';
-            document.getElementById('ov-status').textContent = 'Screenshots complete.';
-            document.getElementById('ov-close').style.display = 'block';
-            document.getElementById('capture-btn').disabled  = false;
-          } else if (job.status === 'error') {
-            stopPoll();
-            overlayError(job.error ?? 'An unexpected error occurred.');
-            document.getElementById('capture-btn').disabled = false;
-          }
-        } catch (err) {
-          // Transient network error — keep polling, but give up after 2 minutes
-          if (Date.now() - state.pollStarted > 120000) {
-            stopPoll();
-            overlayError(`Network error: ${err.message}`);
-            document.getElementById('capture-btn').disabled = false;
-          }
-        }
-      }, 2000);
+    function showRunModal(total) {
+      stopPoll();
+      document.getElementById('run-modal').classList.remove('hidden');
+      document.getElementById('run-title').textContent = `Capturing ${state.site.name}`;
+      document.getElementById('run-status').textContent = 'Starting Chromium…';
+      document.getElementById('spinner').classList.remove('hidden');
+      document.getElementById('progress-fill').style.width = '0%';
+      document.getElementById('progress-label').textContent = `0 of ${total}`;
+      document.getElementById('captures').innerHTML = '<div class="empty">Screenshots will appear here as they complete.</div>';
+      document.getElementById('run-error').style.display = 'none';
+      document.getElementById('download').style.display = 'none';
+      document.getElementById('close-modal').style.display = 'none';
     }
 
-    function stopPoll() {
-      clearInterval(state.pollTimer);
-      state.pollTimer = null;
+    function finishRun(total) {
+      stopPoll();
+      state.running = false;
+      document.getElementById('spinner').classList.add('hidden');
+      document.getElementById('run-title').textContent = 'Capture complete';
+      document.getElementById('run-status').textContent = 'ZIP archive is ready.';
+      document.getElementById('progress-fill').style.width = '100%';
+      document.getElementById('progress-label').textContent = `${state.rendered} of ${total}`;
+      const download = document.getElementById('download'); download.href = `/api/download/${encodeURIComponent(state.jobId)}`; download.style.display = 'block';
+      document.getElementById('close-modal').style.display = 'block';
+      updateSummary();
     }
 
-    // ── Overlay helpers ───────────────────────────────────────────────────────
-    function showOverlay(title, status) {
-      document.getElementById('ov-title').textContent  = title;
-      document.getElementById('ov-status').textContent = status;
-      document.getElementById('ov-spinner').classList.remove('hidden');
-      document.getElementById('ov-dl').style.display    = 'none';
-      document.getElementById('ov-error').style.display = 'none';
-      document.getElementById('ov-close').style.display = 'none';
-      document.getElementById('ov-captures').innerHTML  = '';
-      document.getElementById('ov-progress-fill').style.width = '0%';
-      document.getElementById('ov-progress-label').textContent = '0 of 0';
-      document.getElementById('overlay').classList.remove('hidden');
+    function showRunError(message) {
+      stopPoll();
+      state.running = false;
+      document.getElementById('spinner').classList.add('hidden');
+      document.getElementById('run-title').textContent = 'Capture stopped';
+      document.getElementById('run-status').textContent = 'Review the error and try again.';
+      const error = document.getElementById('run-error'); error.textContent = message; error.style.display = 'block';
+      document.getElementById('close-modal').style.display = 'block';
+      updateSummary();
     }
 
-    function overlayError(msg) {
-      document.getElementById('ov-spinner').classList.add('hidden');
-      document.getElementById('ov-title').textContent   = 'Run failed';
-      document.getElementById('ov-status').textContent  = '';
-      const errEl = document.getElementById('ov-error');
-      errEl.textContent   = msg;
-      errEl.style.display = 'block';
-      document.getElementById('ov-close').style.display = 'block';
+    function closeModal() { if (!state.pollTimer) document.getElementById('run-modal').classList.add('hidden'); }
+    function stopPoll() { if (state.pollTimer) clearTimeout(state.pollTimer); state.pollTimer = null; }
+
+    function enabledOnPage(page) { return page.steps.filter(step => step.enabled === true).length; }
+    function miniNumber(value, onChange) {
+      const input = node('input', { class: 'mini-input', type: 'number', min: '320', max: '3840', value });
+      input.addEventListener('change', () => { const next = Math.max(320, Math.min(3840, Number(input.value) || Number(value))); input.value = next; onChange(next); });
+      return input;
     }
-
-    document.getElementById('ov-close').addEventListener('click', () => {
-      document.getElementById('overlay').classList.add('hidden');
-    });
-
-    // Dismiss on backdrop click
-    document.getElementById('overlay').addEventListener('click', e => {
-      if (e.target === e.currentTarget) {
-        document.getElementById('overlay').classList.add('hidden');
-      }
-    });
-
-    window.addEventListener('beforeunload', stopPoll);
-
-    // ── DOM builder ───────────────────────────────────────────────────────────
-    function el(tag, attrs = {}, ...children) {
-      const node = document.createElement(tag);
-      for (const [k, v] of Object.entries(attrs)) {
-        if (k === 'class')     node.className = v;
-        else if (k === 'text') node.textContent = v;
-        else                   node.setAttribute(k, v);
-      }
-      for (const child of children.flat()) {
-        if (child == null) continue;
-        node.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
-      }
-      return node;
+    function toggleControl(checked, onChange) {
+      const input = node('input', { type: 'checkbox' }); input.checked = checked;
+      input.addEventListener('change', () => onChange(input.checked));
+      return node('label', { class: 'toggle' }, input, node('span'));
     }
-
-    function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
-    function escHtml(str)   { return str.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
-
+    function node(tag, attributes = {}, ...children) {
+      const element = document.createElement(tag);
+      Object.entries(attributes).forEach(([key, value]) => {
+        if (key === 'class') element.className = value;
+        else if (key === 'text') element.textContent = value;
+        else if (value != null) element.setAttribute(key, value);
+      });
+      children.flat().forEach(child => { if (child != null) element.appendChild(child instanceof Node ? child : document.createTextNode(String(child))); });
+      return element;
+    }
+    function clone(value) { return JSON.parse(JSON.stringify(value)); }
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character])); }
     boot();
   </script>
 </body>

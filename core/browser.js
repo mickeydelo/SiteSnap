@@ -1,58 +1,40 @@
-// Always use playwright-core. Locally it auto-discovers the chromium that
-// `npx playwright install chromium` downloads to ~/.cache/ms-playwright/.
-// On Netlify, @sparticuz/chromium supplies the executable and launch args.
-import { chromium } from 'playwright-core';
+import { chromium } from 'playwright';
 
-export const DESKTOP_VIEWPORT = { width: 1442, height: 900 };
-export const MOBILE_VIEWPORT  = { width: 390,  height: 800 };
-
-const DESKTOP_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
-  'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+export const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
+export const MOBILE_VIEWPORT  = { width: 390, height: 844 };
 
 const MOBILE_UA =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) ' +
-  'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) ' +
+  'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
-/**
- * Launch a Playwright browser + context + page.
- *
- * @param {{ width: number, height: number }} viewport
- * @param {{ username: string, password: string } | null} credentials
- * @returns {{ browser, context, page }}
- */
-export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = null, cachedExecutablePath = null) {
+const TRACKER_HOSTS =
+  /google-analytics\.com|googletagmanager\.com|doubleclick\.net|googlesyndication\.com|adobedtm\.com|adobe\.com\/b\/ss|omtrdc\.net|demdex\.net|everesttech\.net|scorecardresearch\.com|quantserve\.com|hotjar\.com|segment\.io|segment\.com|sentry\.io|newrelic\.com|nr-data\.net|optimizely\.com|heap\.io|mixpanel\.com|clarity\.ms|marketo\.com|pardot\.com|hubspot\.com|connect\.facebook\.net|twitter\.com\/i\/adsct|ads\.linkedin\.com|snap\.licdn\.com/i;
+
+/** Launch a deterministic local browser context with no persisted storage. */
+export async function launchContext(
+  viewport = DESKTOP_VIEWPORT,
+  credentials = null,
+  _unusedExecutablePath = null,
+  options = {},
+) {
   const isMobile = viewport.width <= 768;
+  const debug = process.env.SITESNAP_DEBUG === '1';
 
-  let executablePath = undefined; // undefined = playwright-core auto-discovers locally
-  let args           = ['--no-first-run', '--no-default-browser-check'];
-  let headless       = true;
-  let slowMo         = 0;
+  const browser = await chromium.launch({
+    headless: !debug,
+    slowMo: debug ? 250 : 0,
+    args: ['--no-first-run', '--no-default-browser-check'],
+  });
 
-  if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    const sparticuz = (await import('@sparticuz/chromium')).default;
-    // Use pre-resolved path if the background function extracted it early;
-    // otherwise call executablePath() now (cold-start case with no pre-warming).
-    executablePath = cachedExecutablePath ?? await sparticuz.executablePath();
-    args           = sparticuz.args;
-  } else {
-    // Local: playwright-core finds the playwright-installed chromium automatically
-    const debug = process.env.SITESNAP_DEBUG === '1';
-    headless    = !debug;
-    slowMo      = debug ? 600 : 0;
-  }
-
-  const browser = await chromium.launch({ executablePath, args, headless, slowMo });
-
-  // On Lambda, mobile full-page captures expand the viewport to document height.
-  // At 2x scale that render buffer is 4× larger and OOM-crashes Chromium.
-  // Use 1x on Lambda; keep 2x locally for retina-quality screenshots.
-  const onLambda = !!(process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
   const context = await browser.newContext({
     viewport,
-    userAgent: isMobile ? MOBILE_UA : DESKTOP_UA,
-    deviceScaleFactor: isMobile && !onLambda ? 2 : 1,
+    ...(isMobile ? { userAgent: MOBILE_UA, isMobile: true, hasTouch: true } : {}),
+    deviceScaleFactor: Number(options.deviceScaleFactor) || 1,
     ignoreHTTPSErrors: true,
+    locale: 'en-US',
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block',
     storageState: { cookies: [], origins: [] },
     ...(credentials && {
       httpCredentials: {
@@ -62,30 +44,39 @@ export async function launchContext(viewport = DESKTOP_VIEWPORT, credentials = n
     }),
   });
 
-  // Block third-party analytics, tracking, and ad requests.
-  // These keep the network perpetually busy on pharma sites and prevent
-  // waitForNetworkIdle from resolving, adding seconds per page.
-  await context.route(
-    /google-analytics\.com|googletagmanager\.com|doubleclick\.net|googlesyndication\.com|adobe\.com\/b\/ss|omtrdc\.net|demdex\.net|everesttech\.net|scorecardresearch\.com|quantserve\.com|hotjar\.com|segment\.io|segment\.com|sentry\.io|newrelic\.com|nr-data\.net|optimizely\.com|heap\.io|mixpanel\.com|clarity\.ms|veeva\.com|veevasystems\.com|brightcove\.com|coveo\.com|eloqua\.com|marketo\.com|pardot\.com|hubspot\.com|adsymptotic\.com|tapad\.com|turn\.com|rubiconproject\.com|krux\.com|krxd\.net|kochava\.com|branch\.io|appsflyer\.com|facebook\.com\/tr|connect\.facebook\.net|twitter\.com\/i\/adsct|ads\.linkedin\.com|snap\.licdn\.com|ct\.pinterest\.com/,
-    route => route.abort(),
-  );
+  context.setDefaultTimeout(Number(options.actionTimeoutMs) || 10000);
+  context.setDefaultNavigationTimeout(Number(options.navigationTimeoutMs) || 45000);
 
-  const page = await context.newPage();
+  await context.route('**/*', route => {
+    const request = route.request();
+    if (TRACKER_HOSTS.test(request.url())) return route.abort();
+    if (options.blockMedia && request.resourceType() === 'media') return route.abort();
+    return route.continue();
+  });
 
-  // Disable CSS transitions and animations on every page load so screenshots
-  // always show the final settled state, never a mid-animation frame.
-  await page.addInitScript(() => {
-    const applyNoMotion = () => {
-      const s = document.createElement('style');
-      s.textContent = '*, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; animation-delay: 0ms !important; }';
-      (document.head ?? document.documentElement).appendChild(s);
+  await context.addInitScript(() => {
+    const stabilize = () => {
+      if (document.getElementById('sitesnap-stability')) return;
+      const style = document.createElement('style');
+      style.id = 'sitesnap-stability';
+      style.textContent = `
+        html { scroll-behavior: auto !important; }
+        *, *::before, *::after {
+          transition-duration: 0ms !important;
+          animation-duration: 0ms !important;
+          animation-delay: 0ms !important;
+          caret-color: transparent !important;
+        }
+      `;
+      (document.head ?? document.documentElement).appendChild(style);
     };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', applyNoMotion);
+      document.addEventListener('DOMContentLoaded', stabilize, { once: true });
     } else {
-      applyNoMotion();
+      stabilize();
     }
   });
 
+  const page = await context.newPage();
   return { browser, context, page };
 }

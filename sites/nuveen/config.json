@@ -1,0 +1,352 @@
+{
+  "baseUrl": "https://www.nuveen.com",
+  "devices": {
+    "desktop": {
+      "enabled": true,
+      "viewport": { "width": 1440, "height": 900 },
+      "deviceScaleFactor": 1
+    },
+    "mobile": {
+      "enabled": true,
+      "viewport": { "width": 390, "height": 844 },
+      "deviceScaleFactor": 1
+    }
+  },
+  "browser": {
+    "actionTimeoutMs": 12000,
+    "navigationTimeoutMs": 45000,
+    "blockMedia": true,
+    "cookies": [
+      {
+        "name": "siteSwitcherAccept",
+        "value": "true",
+        "domain": ".nuveen.com",
+        "path": "/",
+        "secure": true
+      },
+      {
+        "name": "roleRadioButtonCookie",
+        "value": "Individual Investor",
+        "domain": ".nuveen.com",
+        "path": "/",
+        "secure": true
+      },
+      {
+        "name": "siteSwitcherSelectedValues",
+        "value": "Americas | United States | Individual Investor",
+        "domain": ".nuveen.com",
+        "path": "/",
+        "secure": true
+      }
+    ]
+  },
+  "pages": [
+    {
+      "id": "home",
+      "label": "Nuveen Home",
+      "path": "/en-us/",
+      "readySelector": "body",
+      "settleMs": 1200,
+      "steps": [
+        {
+          "id": "cookie-notice",
+          "group": "Consent",
+          "enabled": true,
+          "label": "Cookie notice",
+          "description": "Initial Nuveen homepage with the OneTrust cookie notice visible.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "includeMobile": true
+        },
+        {
+          "id": "clean-viewport",
+          "group": "Overview",
+          "enabled": true,
+          "label": "Clean homepage viewport",
+          "description": "Cookie notice accepted; captures the settled first viewport.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "includeMobile": true,
+          "actions": [
+            { "type": "acceptCookies", "optional": true, "settle": false }
+          ]
+        },
+        {
+          "id": "full-page",
+          "group": "Overview",
+          "enabled": true,
+          "label": "Clean homepage — full page",
+          "description": "Complete desktop page after consent, including lazy-loaded content.",
+          "captureMode": "fullPage",
+          "includeMobile": false,
+          "actions": [
+            { "type": "acceptCookies", "optional": true, "settle": false }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "high-yield-municipal-bond-fund",
+      "label": "High Yield Municipal Bond Fund",
+      "path": "/en-us/mutual-funds/nuveen-high-yield-municipal-bond-fund?shareclass=I",
+      "readySelector": "#myselect",
+      "readyTimeoutMs": 25000,
+      "settleMs": 1200,
+      "actions": [
+        { "type": "acceptCookies", "optional": true, "settle": false, "timeoutMs": 800 }
+      ],
+      "steps": [
+        {
+          "id": "full-page",
+          "group": "Overview",
+          "enabled": true,
+          "label": "Fund page — full page",
+          "description": "The complete default Class I product page with all lazy content loaded.",
+          "captureMode": "fullPage",
+          "includeMobile": false
+        },
+        {
+          "id": "hero-nhmrx",
+          "group": "Hero · Share class",
+          "enabled": true,
+          "label": "Class I · NHMRX",
+          "description": "Primary fund hero and headline data for Institutional Class I.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-share-class-selector",
+          "focusOffset": -88,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 500 }
+          ]
+        },
+        {
+          "id": "hero-nhmax",
+          "group": "Hero · Share class",
+          "enabled": false,
+          "label": "Class A · NHMAX",
+          "description": "Optional Class A hero state.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-share-class-selector",
+          "focusOffset": -88,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "A | NHMAX", "settle": "network-idle", "delayMs": 650 }
+          ]
+        },
+        {
+          "id": "hero-nhccx",
+          "group": "Hero · Share class",
+          "enabled": false,
+          "label": "Class C · NHCCX",
+          "description": "Optional Class C hero state.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-share-class-selector",
+          "focusOffset": -88,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "C | NHCCX", "settle": "network-idle", "delayMs": 650 }
+          ]
+        },
+        {
+          "id": "hero-nhmfx",
+          "group": "Hero · Share class",
+          "enabled": false,
+          "label": "Class R6 · NHMFX",
+          "description": "Optional Class R6 hero state.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-share-class-selector",
+          "focusOffset": -88,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "R6 | NHMFX", "settle": "network-idle", "delayMs": 650 }
+          ]
+        },
+        {
+          "id": "performance-quarterly",
+          "group": "Performance",
+          "enabled": true,
+          "label": "Average annual total return · Quarterly",
+          "description": "Quarter-end average annual total returns for Class I.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\"))",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\")) .nuv-product-detail-table-retail__link-toggle-option:has-text(\"QUARTERLY\")", "delayMs": 350 }
+          ]
+        },
+        {
+          "id": "performance-monthly",
+          "group": "Performance",
+          "enabled": true,
+          "label": "Average annual total return · Monthly",
+          "description": "Month-end average annual total returns for Class I.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\"))",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\")) .nuv-product-detail-table-retail__link-toggle-option:has-text(\"MONTHLY\")", "delayMs": 450 }
+          ]
+        },
+        {
+          "id": "tey-sample",
+          "group": "Pricing · TEY",
+          "enabled": true,
+          "label": "Calculate TEY · Sample result",
+          "description": "Taxable Equivalent Yield calculator populated with editable sample data.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "scrollTop": false,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "a[href=\"#TEY\"], button.tey-btn--open-overlay", "delayMs": 250 },
+            { "type": "select", "selector": "#tey-filing-status", "label": "Filing status", "value": "Single", "editable": true, "options": ["Single", "Joint"], "settle": false },
+            { "type": "input", "selector": "#annual-income", "label": "Annual income", "value": "150000", "editable": true },
+            { "type": "click", "selector": "button.tey-btn--calculate", "delayMs": 350 }
+          ],
+          "waitFor": { "selector": ".tey-calculator.is-open .tey-calculator-result", "delayMs": 250 },
+          "cleanupActions": [
+            { "type": "click", "selector": "button.tey-btn--close-overlay.is-open", "settle": false, "timeoutMs": 1200 }
+          ]
+        },
+        {
+          "id": "distributions-overview",
+          "group": "Distributions",
+          "enabled": true,
+          "label": "Distributions overview",
+          "description": "The primary distribution section at viewport size.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "scrollTop": false,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "a.nuv-product-detail-anchor-nav-retail__links-list-link:has-text(\"Distributions\")", "delayMs": 350 }
+          ]
+        },
+        {
+          "id": "distributions-since-inception",
+          "group": "Distributions",
+          "enabled": true,
+          "label": "Since inception · Distribution history modal",
+          "description": "Full distribution-history overlay opened from the Since inception action.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "scrollTop": false,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "a[data-speed-bump-id=\"distributon-history-since-inception\"], a:has-text(\"Since inception\")", "settle": "network-idle", "delayMs": 500 }
+          ],
+          "waitFor": { "selector": "#distributon-history-since-inception.nuv-speed-bump--show, .nuv-speed-bump--show:has-text(\"Distribution history\")", "delayMs": 250 },
+          "cleanupActions": [
+            { "type": "click", "selector": "#distributon-history-since-inception .nuv-speed-bump__close-btn, .nuv-speed-bump--show .nuv-speed-bump__close-btn", "settle": false }
+          ]
+        },
+        {
+          "id": "characteristics-maturity",
+          "group": "Characteristics",
+          "enabled": true,
+          "label": "Maturity breakdown in years",
+          "description": "Default maturity table and chart state.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Maturity breakdown in years\"))",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")", "settle": "network-idle", "delayMs": 400 }
+          ]
+        },
+        {
+          "id": "characteristics-top-states",
+          "group": "Characteristics",
+          "enabled": false,
+          "label": "Top states",
+          "description": "Optional state-allocation table and map.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Top states\"))",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Top states\")", "settle": "network-idle", "delayMs": 700 }
+          ]
+        },
+        {
+          "id": "characteristics-sector",
+          "group": "Characteristics",
+          "enabled": false,
+          "label": "Sector allocation",
+          "description": "Optional sector-allocation table and chart.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Sector allocation\"))",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Sector allocation\")", "settle": "network-idle", "delayMs": 700 }
+          ]
+        },
+        {
+          "id": "characteristics-credit-quality",
+          "group": "Characteristics",
+          "enabled": false,
+          "label": "Credit quality",
+          "description": "Optional credit-quality distribution table and chart.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Credit quality\"))",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Credit quality\")", "settle": "network-idle", "delayMs": 700 }
+          ]
+        },
+        {
+          "id": "maturity-details-modal",
+          "group": "Characteristics",
+          "enabled": false,
+          "label": "Maturity breakdown details · Modal",
+          "description": "Optional detailed maturity-breakdown overlay.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "scrollTop": false,
+          "includeMobile": true,
+          "actions": [
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Maturity breakdown in years\")", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "a[data-speed-bump-id=\"maturity-breakdown-details\"], a:has-text(\"Maturity breakdown details\")", "settle": "network-idle", "delayMs": 500 }
+          ],
+          "waitFor": { "selector": "#maturity-breakdown-details.nuv-speed-bump--show, .nuv-speed-bump--show:has-text(\"Maturity breakdown details\")", "delayMs": 250 },
+          "cleanupActions": [
+            { "type": "click", "selector": "#maturity-breakdown-details .nuv-speed-bump__close-btn, .nuv-speed-bump--show .nuv-speed-bump__close-btn", "settle": false, "timeoutMs": 1200 }
+          ]
+        }
+      ]
+    }
+  ]
+}
