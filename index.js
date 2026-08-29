@@ -10,22 +10,27 @@ import { run as runCaptures } from './core/runner.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
+const APP_VERSION = '1.1.0';
 const MAX_JOBS = 20;
+const JOB_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_HOSTED_CAPTURES = 60;
 const IS_VERCEL = process.env.VERCEL === '1';
 const HOSTED_STORAGE_READY = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const HOSTED_KEY_READY = Boolean(process.env.SITESNAP_CAPTURE_KEY);
+const HOSTED_CAPTURE_READY = HOSTED_STORAGE_READY && HOSTED_KEY_READY;
 const RUNTIME_MODE = IS_VERCEL
-  ? (HOSTED_STORAGE_READY ? 'vercel-capture' : 'vercel-setup')
+  ? (HOSTED_CAPTURE_READY ? 'vercel-capture' : 'vercel-setup')
   : 'local';
-const CAPTURE_ENABLED = !IS_VERCEL || HOSTED_STORAGE_READY;
-const CAPTURE_KEY_REQUIRED = IS_VERCEL && Boolean(process.env.SITESNAP_CAPTURE_KEY);
+const CAPTURE_ENABLED = !IS_VERCEL || HOSTED_CAPTURE_READY;
+const CAPTURE_KEY_REQUIRED = IS_VERCEL && HOSTED_KEY_READY;
 
 const app = express();
 const jobs = new Map();
 let hostedCaptureActive = false;
+let localCaptureActive = false;
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '256kb', strict: true }));
 app.use(express.static(path.join(ROOT_DIR, 'ui'), {
   etag: true,
   maxAge: IS_VERCEL ? '1h' : 0,
@@ -40,6 +45,8 @@ app.get('/api/health', (_request, response) => {
     captureEnabled: CAPTURE_ENABLED,
     captureKeyRequired: CAPTURE_KEY_REQUIRED,
     message: hostedRuntimeMessage(),
+    version: APP_VERSION,
+    limits: IS_VERCEL ? { maxCaptures: MAX_HOSTED_CAPTURES, maxDeviceScale: 1 } : null,
   });
 });
 
@@ -73,8 +80,10 @@ app.get('/site-image/:siteId', (request, response) => {
 app.post('/api/run', async (request, response) => {
   if (!CAPTURE_ENABLED) {
     return response.status(503).json({
-      code: 'HOSTED_STORAGE_REQUIRED',
-      error: 'Hosted capture needs a public Vercel Blob store connected to this project.',
+      code: HOSTED_STORAGE_READY ? 'HOSTED_CAPTURE_KEY_REQUIRED' : 'HOSTED_STORAGE_REQUIRED',
+      error: HOSTED_STORAGE_READY
+        ? 'Hosted capture needs SITESNAP_CAPTURE_KEY configured for this environment.'
+        : 'Hosted capture needs a public Vercel Blob store connected to this project.',
     });
   }
 
@@ -95,11 +104,24 @@ app.post('/api/run', async (request, response) => {
     return runHostedCapture(request, response, siteDir, siteId, requestedJobId, configOverride);
   }
 
+  if (localCaptureActive) {
+    return response.status(409).json({
+      code: 'CAPTURE_ALREADY_RUNNING',
+      error: 'A local capture is already running. Wait for it to finish before starting another.',
+    });
+  }
   evictOldJobs();
   const jobId = normalizeJobId(requestedJobId);
+  if (jobs.has(jobId)) {
+    return response.status(409).json({
+      code: 'JOB_ID_IN_USE',
+      error: 'That capture job already exists. Start a new run with a fresh job id.',
+    });
+  }
   const job = {
     status: 'running',
     entries: [],
+    failures: [],
     total: 0,
     log: [],
     zipPath: null,
@@ -118,16 +140,36 @@ app.post('/api/run', async (request, response) => {
           filepath: message.filepath,
         });
       }
+      if (message.type === 'failure') {
+        job.failures.push({
+          device: message.device,
+          pageId: message.pageId,
+          stepId: message.stepId,
+          label: message.label,
+          message: message.message,
+          debugFilename: message.debugFilename,
+        });
+      }
       return;
     }
     job.log.push(String(message));
     if (job.log.length > 200) job.log.shift();
   };
 
+  localCaptureActive = true;
   Promise.resolve()
     .then(() => runCaptures(siteDir, null, configOverride ?? null, onProgress))
-    .then(zipPath => Object.assign(job, { status: 'done', zipPath }))
-    .catch(error => Object.assign(job, { status: 'error', error: error.message }));
+    .then(result => Object.assign(job, {
+      status: result.status,
+      zipPath: result.zipPath,
+      failures: result.failures,
+    }))
+    .catch(error => Object.assign(job, { status: 'error', error: error.message }))
+    .finally(() => {
+      localCaptureActive = false;
+      const timer = setTimeout(() => jobs.delete(jobId), JOB_TTL_MS);
+      timer.unref?.();
+    });
 
   return response.json({ jobId });
 });
@@ -145,6 +187,9 @@ app.get('/api/status/:jobId', (request, response) => {
     total: job.total,
     lastLog: job.log.at(-1) ?? null,
     error: job.error,
+    failures: job.failures,
+    failureCount: job.failures.length,
+    archiveReady: Boolean(job.zipPath && fs.existsSync(job.zipPath)),
   });
 });
 
@@ -158,7 +203,7 @@ app.get('/api/thumbnail/:jobId/:index', (request, response) => {
 
 app.get('/api/download/:jobId', (request, response) => {
   const job = jobs.get(request.params.jobId);
-  if (!job || job.status !== 'done' || !job.zipPath || !fs.existsSync(job.zipPath)) {
+  if (!job || !job.zipPath || !fs.existsSync(job.zipPath)) {
     return response.status(404).json({ error: 'Capture archive is not ready.' });
   }
   return response.download(job.zipPath, path.basename(job.zipPath));
@@ -166,6 +211,25 @@ app.get('/api/download/:jobId', (request, response) => {
 
 app.get('/run', (_request, response) => {
   response.sendFile(path.join(ROOT_DIR, 'ui', 'run.html'));
+});
+
+app.use('/api', (_request, response) => {
+  response.status(404).json({ code: 'API_NOT_FOUND', error: 'API route not found.' });
+});
+
+app.use((error, request, response, next) => {
+  if (response.headersSent) return next(error);
+  const isPayloadTooLarge = error?.type === 'entity.too.large';
+  const isInvalidJson = error instanceof SyntaxError && error?.type === 'entity.parse.failed';
+  const status = isPayloadTooLarge ? 413 : (isInvalidJson ? 400 : 500);
+  const message = isPayloadTooLarge
+    ? 'Capture configuration exceeds the 256 KB request limit.'
+    : (isInvalidJson ? 'Request body must contain valid JSON.' : 'Unexpected server error.');
+  if (status === 500) console.error(`[${request.method} ${request.path}]`, error);
+  return response.status(status).json({
+    code: isPayloadTooLarge ? 'PAYLOAD_TOO_LARGE' : (isInvalidJson ? 'INVALID_JSON' : 'INTERNAL_ERROR'),
+    error: message,
+  });
 });
 
 async function runHostedCapture(
@@ -209,15 +273,19 @@ async function runHostedCapture(
       }
     };
 
-    const zipPath = await runCaptures(siteDir, null, hostedConfig, onProgress, outputBaseDir);
-    const downloadUrl = await uploadHostedArchive(zipPath, siteId, jobId);
+    const result = await runCaptures(siteDir, null, hostedConfig, onProgress, outputBaseDir);
+    const downloadUrl = await uploadHostedArchive(result.zipPath, siteId, jobId);
 
     return response.json({
       jobId,
-      status: 'done',
+      status: result.status,
       entries: progress.entries,
       total: progress.total,
-      lastLog: 'Capture complete. ZIP archive uploaded.',
+      failures: result.failures,
+      failureCount: result.failures.length,
+      lastLog: result.status === 'done'
+        ? 'Capture complete. ZIP archive uploaded.'
+        : `Capture finished with ${result.failures.length} failed state${result.failures.length === 1 ? '' : 's'}.`,
       downloadUrl,
     });
   } catch (error) {
@@ -244,14 +312,18 @@ async function uploadHostedArchive(zipPath, siteId, jobId) {
   return blob.downloadUrl || blob.url;
 }
 
-function sanitizeHostedConfig(defaultConfig, requestedConfig) {
+export function sanitizeHostedConfig(defaultConfig, requestedConfig) {
   const sanitized = structuredClone(defaultConfig);
   if (!requestedConfig) return sanitized;
 
   for (const deviceName of ['desktop', 'mobile']) {
     const target = sanitized.devices?.[deviceName];
     const requested = requestedConfig.devices?.[deviceName];
-    if (!target || !requested) continue;
+    if (!target) continue;
+    if (!requested) {
+      target.enabled = false;
+      continue;
+    }
     target.enabled = requested.enabled !== false;
     target.viewport = sanitizeDimensions(requested.viewport, target.viewport);
     target.deviceScaleFactor = Number(requested.deviceScaleFactor) === 2 ? 2 : 1;
@@ -313,7 +385,7 @@ function copyEditableActionValues(defaultActions = [], requestedActions = []) {
   });
 }
 
-function enforceHostedLimits(config) {
+export function enforceHostedLimits(config) {
   const enabled = countConfiguredCaptures(config);
   if (!enabled) throw hostedLimitError('Enable at least one capture before starting a server run.');
   if (enabled > MAX_HOSTED_CAPTURES) {
@@ -326,7 +398,7 @@ function enforceHostedLimits(config) {
   }
 }
 
-function countConfiguredCaptures(config) {
+export function countConfiguredCaptures(config) {
   return Object.entries(config.devices ?? {}).reduce((total, [deviceName, device]) => {
     if (device.enabled === false) return total;
     return total + config.pages.reduce((pageTotal, page) => {
@@ -361,7 +433,7 @@ function normalizeJobId(value) {
 
 function isHostedRequestAuthorized(request) {
   const expected = process.env.SITESNAP_CAPTURE_KEY;
-  if (!expected) return true;
+  if (!expected) return false;
   const authorization = request.get('authorization') || '';
   const provided = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
   const expectedBuffer = Buffer.from(expected);
@@ -374,6 +446,9 @@ function hostedRuntimeMessage() {
   if (!IS_VERCEL) return null;
   if (!HOSTED_STORAGE_READY) {
     return 'Hosted setup required · Connect a public Vercel Blob store, then redeploy to enable server capture.';
+  }
+  if (!HOSTED_KEY_READY) {
+    return 'Hosted setup required · Add SITESNAP_CAPTURE_KEY to this environment, then redeploy.';
   }
   return 'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.';
 }
@@ -452,4 +527,6 @@ function startServer(port) {
 
 export default app;
 
-if (!IS_VERCEL) startServer(Number(process.env.PORT) || 3000);
+const IS_DIRECT_ENTRY = process.argv[1]
+  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (!IS_VERCEL && IS_DIRECT_ENTRY) startServer(Number(process.env.PORT) || 3000);

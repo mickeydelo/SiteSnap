@@ -11,18 +11,11 @@ const MOBILE_UA =
 const TRACKER_HOSTS =
   /google-analytics\.com|googletagmanager\.com|doubleclick\.net|googlesyndication\.com|adobedtm\.com|adobe\.com\/b\/ss|omtrdc\.net|demdex\.net|everesttech\.net|scorecardresearch\.com|quantserve\.com|hotjar\.com|segment\.io|segment\.com|sentry\.io|newrelic\.com|nr-data\.net|optimizely\.com|heap\.io|mixpanel\.com|clarity\.ms|marketo\.com|pardot\.com|hubspot\.com|connect\.facebook\.net|twitter\.com\/i\/adsct|ads\.linkedin\.com|snap\.licdn\.com/i;
 
-/** Launch a deterministic local browser context with no persisted storage. */
-export async function launchContext(
-  viewport = DESKTOP_VIEWPORT,
-  credentials = null,
-  _unusedExecutablePath = null,
-  options = {},
-) {
-  const isMobile = viewport.width <= 768;
+/** Launch one Chromium process that can host multiple isolated device contexts. */
+export async function launchBrowser() {
   const debug = !IS_VERCEL && process.env.SITESNAP_DEBUG === '1';
   const { chromium, launchOptions } = await loadBrowserRuntime();
-
-  const browser = await chromium.launch({
+  return chromium.launch({
     ...launchOptions,
     headless: !debug,
     slowMo: debug ? 250 : 0,
@@ -32,6 +25,16 @@ export async function launchContext(
       '--no-default-browser-check',
     ],
   });
+}
+
+/** Create a deterministic browser context with no persisted storage. */
+export async function createContext(
+  browser,
+  viewport = DESKTOP_VIEWPORT,
+  credentials = null,
+  options = {},
+) {
+  const isMobile = viewport.width <= 768;
 
   const context = await browser.newContext({
     viewport,
@@ -85,7 +88,24 @@ export async function launchContext(
   });
 
   const page = await context.newPage();
-  return { browser, context, page };
+  return { context, page };
+}
+
+/** Backward-compatible single-context launcher for focused scripts and tests. */
+export async function launchContext(
+  viewport = DESKTOP_VIEWPORT,
+  credentials = null,
+  _unusedExecutablePath = null,
+  options = {},
+) {
+  const browser = await launchBrowser();
+  try {
+    const { context, page } = await createContext(browser, viewport, credentials, options);
+    return { browser, context, page };
+  } catch (error) {
+    await browser.close().catch(() => {});
+    throw error;
+  }
 }
 
 function loadBrowserRuntime() {

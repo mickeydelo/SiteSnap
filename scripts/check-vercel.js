@@ -27,13 +27,16 @@ try {
   const healthResponse = await fetch(`${origin}/api/health`);
   const health = await healthResponse.json();
   assert.equal(healthResponse.status, 200);
-  assert.deepEqual(health, {
-    ok: true,
-    mode: 'vercel-capture',
-    captureEnabled: true,
-    captureKeyRequired: true,
-    message: 'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.',
-  });
+  assert.equal(health.ok, true);
+  assert.equal(health.mode, 'vercel-capture');
+  assert.equal(health.captureEnabled, true);
+  assert.equal(health.captureKeyRequired, true);
+  assert.equal(health.version, '1.1.0');
+  assert.deepEqual(health.limits, { maxCaptures: 60, maxDeviceScale: 1 });
+  assert.equal(
+    health.message,
+    'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.',
+  );
 
   const sitesResponse = await fetch(`${origin}/api/sites`);
   const sites = await sitesResponse.json();

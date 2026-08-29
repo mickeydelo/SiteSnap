@@ -1,6 +1,6 @@
 {
   "name": "sitesnap",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local configurable screenshot studio for responsive pages and interactive states",
   "type": "module",
   "main": "index.js",
@@ -11,8 +11,9 @@
     "start": "node index.js",
     "dev": "SITESNAP_DEBUG=1 node index.js",
     "setup": "npm install && npx playwright install chromium",
-    "check": "node --check index.js && node --check core/actions.js && node --check core/browser.js && node --check core/capture.js && node --check core/runner.js && node --check core/utils.js && node scripts/check-vercel.js",
-    "check:vercel": "node scripts/check-vercel.js"
+    "check": "node --check index.js && node --check core/actions.js && node --check core/browser.js && node --check core/capture.js && node --check core/runner.js && node --check core/utils.js && node --test && node scripts/check-vercel.js && node scripts/check-vercel-setup.js",
+    "test": "node --test",
+    "check:vercel": "node scripts/check-vercel.js && node scripts/check-vercel-setup.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",

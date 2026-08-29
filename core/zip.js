@@ -3,7 +3,7 @@ import fs from 'fs';
 
 /**
  * Compress the contents of sourceDir into a ZIP archive at outputPath.
- * Files are stored flat inside the archive root (no parent directory prefix).
+ * Device directories and the run manifest are preserved at the archive root.
  *
  * @param {string} sourceDir   Directory whose contents should be archived
  * @param {string} outputPath  Destination .zip file path
@@ -12,13 +12,19 @@ import fs from 'fs';
 export function zipDirectory(sourceDir, outputPath) {
   return new Promise((resolve, reject) => {
     const output  = fs.createWriteStream(outputPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    // PNGs are already compressed; level 1 keeps packaging fast with negligible
+    // impact on archive size, especially for large full-page captures.
+    const archive = archiver('zip', { zlib: { level: 1 } });
 
     output.on('close', resolve);
+    output.on('error', reject);
     archive.on('error', reject);
+    archive.on('warning', error => {
+      if (error.code !== 'ENOENT') reject(error);
+    });
 
     archive.pipe(output);
-    archive.directory(sourceDir, false); // false = no leading directory in the archive
+    archive.directory(sourceDir, false);
     archive.finalize();
   });
 }
