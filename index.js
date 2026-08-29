@@ -18,7 +18,6 @@ const RUNTIME_MODE = IS_VERCEL
   : 'local';
 const CAPTURE_ENABLED = !IS_VERCEL || HOSTED_STORAGE_READY;
 const CAPTURE_KEY_REQUIRED = IS_VERCEL && Boolean(process.env.SITESNAP_CAPTURE_KEY);
-const LOCAL_RUNNER_PATH = ['.', 'core', 'runner.js'].join('/');
 
 const app = express();
 const jobs = new Map();
@@ -434,7 +433,7 @@ function setHostedCache(response, seconds) {
 }
 
 function loadLocalRunner() {
-  localRunnerPromise ??= import(LOCAL_RUNNER_PATH).then(module => module.run);
+  localRunnerPromise ??= import('./core/runner.js').then(module => module.run);
   return localRunnerPromise;
 }
 
