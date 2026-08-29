@@ -1,0 +1,4 @@
+core
+sites/**/output
+*.zip
+.DS_Store

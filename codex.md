@@ -19,6 +19,8 @@
 - Full-page capture expands height without a fixed cap. This avoids native full-page capture including Nuveen’s off-canvas utility drawer.
 - Desktop and mobile contexts run in parallel and never share cookies or storage.
 - Output is local and credentials are not used.
+- Vercel serves a read-only configuration preview. It never imports or launches the local Playwright runner.
+- `VERCEL=1` is the runtime boundary: health reports `vercel-preview` and capture requests return `LOCAL_CAPTURE_ONLY`.
 
 ## Selector strategy
 
@@ -34,5 +36,7 @@ npm run check
 npm audit --omit=dev
 npm start
 ```
+
+`npm run check` also runs the Vercel preview smoke check. No Vercel environment variables are required.
 
 Use `npm run dev` for a visible, slowed browser when a live selector changes.

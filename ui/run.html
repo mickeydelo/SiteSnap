@@ -36,6 +36,8 @@
     .capture-button { border: 0; border-radius: 11px; padding: 10px 17px; background: var(--lime); color: var(--navy); font-weight: 800; cursor: pointer; box-shadow: 0 8px 22px rgba(79,177,44,.18); }
     .capture-button:hover { background: #86e25f; }
     .capture-button:disabled { opacity: .45; cursor: not-allowed; }
+    .runtime-banner { padding: 10px 24px; border-bottom: 1px solid #d8e6d3; color: #31533b; background: #edf8e9; font-size: 11px; font-weight: 700; }
+    .runtime-banner.hidden { display: none; }
     .app { display: grid; grid-template-columns: var(--sidebar) minmax(0,1fr); min-height: calc(100vh - 68px); }
     .sidebar { position: sticky; top: 68px; height: calc(100vh - 68px); overflow: auto; border-right: 1px solid var(--line); background: #eef4f2; padding: 18px 14px; }
     .preview { width: 100%; height: 118px; object-fit: cover; object-position: top; display: block; border-radius: 12px; border: 1px solid #cfdbde; background: #dfe9e6; }
@@ -144,6 +146,7 @@
   <div class="app">
     <aside class="sidebar" id="sidebar"><div class="skeleton"></div></aside>
     <section class="workspace">
+      <div class="runtime-banner hidden" id="runtime-banner">Hosted preview · Configure every state here, then run locally for exact Chromium output.</div>
       <div class="controls">
         <div class="preset-row">
           <button class="preset primary" data-preset="recommended">Recommended</button>
@@ -179,26 +182,36 @@
     const state = {
       siteId: '', site: null, config: null, defaults: null,
       activePage: 0, query: '', pollTimer: null, jobId: null, rendered: 0, running: false,
+      runtime: { mode: 'local', captureEnabled: true },
     };
 
     async function boot() {
       state.siteId = new URLSearchParams(location.search).get('site') || '';
       if (!state.siteId) { location.href = '/'; return; }
       try {
-        const [configResponse, sitesResponse] = await Promise.all([
-          fetch(`/api/config/${encodeURIComponent(state.siteId)}`), fetch('/api/sites')
+        const [configResponse, sitesResponse, healthResponse] = await Promise.all([
+          fetch(`/api/config/${encodeURIComponent(state.siteId)}`),
+          fetch('/api/sites'),
+          fetch('/api/health', { cache: 'no-store' })
         ]);
         const config = await configResponse.json();
         const sites = await sitesResponse.json();
+        const health = await healthResponse.json();
         if (!configResponse.ok) throw new Error(config.error || `HTTP ${configResponse.status}`);
+        if (!sitesResponse.ok) throw new Error(sites.error || `HTTP ${sitesResponse.status}`);
+        if (!healthResponse.ok) throw new Error(health.error || `HTTP ${healthResponse.status}`);
         state.site = sites.find(site => site.id === state.siteId) || { name: state.siteId };
         state.config = clone(config);
         state.defaults = clone(config);
+        state.runtime = health;
         document.getElementById('project-name').textContent = state.site.name;
-        document.getElementById('project-note').textContent = state.site.description || 'Local capture configuration';
+        const hosted = state.runtime.captureEnabled === false;
+        document.getElementById('project-note').textContent = hosted
+          ? 'Hosted configuration preview · capture locally'
+          : (state.site.description || 'Local capture configuration');
+        document.getElementById('runtime-banner').classList.toggle('hidden', !hosted);
         bindStaticEvents();
         renderAll();
-        document.getElementById('capture-button').disabled = false;
       } catch (error) {
         document.getElementById('content').innerHTML = `<div class="empty">Unable to load configuration: ${escapeHtml(error.message)}</div>`;
       }
@@ -356,8 +369,15 @@
     function updateSummary() {
       const total = countCaptures();
       const button = document.getElementById('capture-button');
+      if (state.runtime.captureEnabled === false) {
+        button.textContent = `Preview · ${total}`;
+        button.disabled = true;
+        button.title = 'Capture execution is intentionally local-only.';
+        return;
+      }
       button.textContent = `Capture · ${total}`;
       button.disabled = total === 0 || state.running;
+      button.removeAttribute('title');
     }
 
     function countCaptures() {
@@ -374,6 +394,7 @@
     }
 
     async function startCapture() {
+      if (state.runtime.captureEnabled === false) return;
       const total = countCaptures();
       if (!total) return;
       state.running = true;

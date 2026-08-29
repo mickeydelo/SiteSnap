@@ -4,24 +4,38 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { exec } from 'child_process';
-import { run } from './core/runner.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
 const MAX_JOBS = 20;
+const IS_VERCEL = process.env.VERCEL === '1';
+const RUNTIME_MODE = IS_VERCEL ? 'vercel-preview' : 'local';
+const CAPTURE_ENABLED = !IS_VERCEL;
+const LOCAL_RUNNER_PATH = ['.', 'core', 'runner.js'].join('/');
 
 const app = express();
 const jobs = new Map();
+let localRunnerPromise = null;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(ROOT_DIR, 'ui'), { etag: true, maxAge: '5m' }));
+app.use(express.static(path.join(ROOT_DIR, 'ui'), {
+  etag: true,
+  maxAge: IS_VERCEL ? '1h' : 0,
+  lastModified: true,
+}));
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, mode: 'local' });
+  response.setHeader('Cache-Control', 'no-store');
+  response.json({
+    ok: true,
+    mode: RUNTIME_MODE,
+    captureEnabled: CAPTURE_ENABLED,
+  });
 });
 
 app.get('/api/sites', (_request, response) => {
+  setHostedCache(response, 300);
   response.json(listSites());
 });
 
@@ -29,6 +43,7 @@ app.get('/api/config/:siteId', (request, response) => {
   const siteDir = resolveSiteDir(request.params.siteId);
   if (!siteDir) return response.status(404).json({ error: 'Site not found.' });
   try {
+    setHostedCache(response, 300);
     return response.json(readJson(path.join(siteDir, 'config.json')));
   } catch (error) {
     return response.status(500).json({ error: `Invalid site config: ${error.message}` });
@@ -42,10 +57,18 @@ app.get('/site-image/:siteId', (request, response) => {
   const imageName = metadata.image || `${request.params.siteId}.png`;
   const imagePath = path.join(siteDir, 'images', path.basename(imageName));
   if (!fs.existsSync(imagePath)) return response.sendStatus(404);
+  setHostedCache(response, 86400);
   return response.sendFile(imagePath);
 });
 
 app.post('/api/run', (request, response) => {
+  if (!CAPTURE_ENABLED) {
+    return response.status(503).json({
+      code: 'LOCAL_CAPTURE_ONLY',
+      error: 'Hosted preview is read-only. Run SiteSnap locally for deterministic Chromium captures.',
+    });
+  }
+
   const { jobId: requestedJobId, siteId, config: configOverride } = request.body ?? {};
   const siteDir = resolveSiteDir(siteId);
   if (!siteDir) return response.status(404).json({ error: 'Site not found.' });
@@ -84,7 +107,8 @@ app.post('/api/run', (request, response) => {
     if (job.log.length > 200) job.log.shift();
   };
 
-  run(siteDir, null, configOverride ?? null, onProgress)
+  loadLocalRunner()
+    .then(run => run(siteDir, null, configOverride ?? null, onProgress))
     .then(zipPath => Object.assign(job, { status: 'done', zipPath }))
     .catch(error => Object.assign(job, { status: 'error', error: error.message }));
 
@@ -172,6 +196,19 @@ function evictOldJobs() {
   }
 }
 
+function setHostedCache(response, seconds) {
+  if (!IS_VERCEL) return;
+  response.setHeader(
+    'Cache-Control',
+    `public, max-age=0, s-maxage=${seconds}, stale-while-revalidate=${seconds * 12}`,
+  );
+}
+
+function loadLocalRunner() {
+  localRunnerPromise ??= import(LOCAL_RUNNER_PATH).then(module => module.run);
+  return localRunnerPromise;
+}
+
 function startServer(port) {
   const server = app.listen(port, () => {
     const url = `http://localhost:${port}`;
@@ -191,4 +228,6 @@ function startServer(port) {
   });
 }
 
-startServer(Number(process.env.PORT) || 3000);
+export default app;
+
+if (!IS_VERCEL) startServer(Number(process.env.PORT) || 3000);

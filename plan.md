@@ -29,8 +29,9 @@ SiteSnap is a local-first screenshot studio for capturing complete responsive pa
 - The UI sends an in-memory config override to `POST /api/run`.
 - Progress and thumbnails are available while the run is active.
 - Successful runs are retained under `sites/nuveen/output/` and packaged as ZIP files.
-
-Cloud/serverless deployment is intentionally out of scope.
+- Vercel serves the same configuration UI as a lightweight hosted preview.
+- Hosted capture execution is intentionally disabled because serverless memory and files are not durable across the current polling workflow.
+- The local runtime remains the canonical capture environment for speed and pixel accuracy.
 
 ## Validation expectations
 
