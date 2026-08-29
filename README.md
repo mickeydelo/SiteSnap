@@ -17,7 +17,7 @@ Use `npm run dev` to run Chromium visibly with slowed interactions for selector 
 
 - Choose **Nuveen** and configure the recommended, essential, or all-states preset.
 - Enable desktop and/or mobile, adjust viewport dimensions, and choose 1× or 2× output.
-- Toggle individual states such as NHMAX/NHCCX/NHMFX, performance periods, TEY sample data, distribution history, and characteristic views.
+- Toggle individual states such as NHMAX/NHCCX/NHMFX, every performance tab (including quarterly/monthly average returns), TEY sample data, distribution history, and characteristic views.
 - Change any state between viewport, full-page, or element capture when the target supports it.
 - Download the completed ZIP. Runs are also retained under `sites/nuveen/output/` for local review.
 

@@ -175,12 +175,12 @@
           "id": "performance-quarterly",
           "group": "Performance",
           "enabled": true,
-          "label": "Average annual total return · Quarterly",
+          "label": "Average annual total returns · Quarterly",
           "description": "Quarter-end average annual total returns for Class I.",
           "captureMode": "viewport",
           "desktop": { "width": 1440, "height": 900 },
           "mobile": { "width": 390, "height": 844 },
-          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Calendar year returns\")) .nuv-tabbed-content__header",
           "focusOffset": -92,
           "includeMobile": true,
           "actions": [
@@ -192,17 +192,68 @@
           "id": "performance-monthly",
           "group": "Performance",
           "enabled": true,
-          "label": "Average annual total return · Monthly",
+          "label": "Average annual total returns · Monthly",
           "description": "Month-end average annual total returns for Class I.",
           "captureMode": "viewport",
           "desktop": { "width": 1440, "height": 900 },
           "mobile": { "width": 390, "height": 844 },
-          "focusSelector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\"))",
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Calendar year returns\")) .nuv-tabbed-content__header",
           "focusOffset": -92,
           "includeMobile": true,
           "actions": [
             { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
             { "type": "click", "selector": ".nuv-product-detail-table-retail:has(h3.nuv-product-detail-table-retail__title:text-is(\"Average annual total returns\")) .nuv-product-detail-table-retail__link-toggle-option:has-text(\"MONTHLY\")", "delayMs": 450 }
+          ]
+        },
+        {
+          "id": "performance-calendar-year",
+          "group": "Performance",
+          "enabled": true,
+          "label": "Calendar year returns",
+          "description": "Annual Class I returns shown by calendar year.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Calendar year returns\")) .nuv-tabbed-content__header",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Calendar year returns\")", "delayMs": 450 }
+          ]
+        },
+        {
+          "id": "performance-medalist-ratings",
+          "group": "Performance",
+          "enabled": true,
+          "label": "Morningstar Medalist Ratings",
+          "description": "Morningstar Medalist Rating, pillars, and effective date for Class I.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Calendar year returns\")) .nuv-tabbed-content__header",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Morningstar Medalist Ratings\")", "delayMs": 450 }
+          ]
+        },
+        {
+          "id": "performance-morningstar-ratings",
+          "group": "Performance",
+          "enabled": true,
+          "label": "Morningstar Ratings",
+          "description": "Morningstar category ratings and risk-adjusted return details for Class I.",
+          "captureMode": "viewport",
+          "desktop": { "width": 1440, "height": 900 },
+          "mobile": { "width": 390, "height": 844 },
+          "focusSelector": ".nuv-tabbed-content:has(li.nuv-tabbed-content__tab-nav-item:has-text(\"Calendar year returns\")) .nuv-tabbed-content__header",
+          "focusOffset": -92,
+          "includeMobile": true,
+          "actions": [
+            { "type": "select", "selector": "#myselect", "value": "I | NHMRX", "settle": "network-idle", "delayMs": 400 },
+            { "type": "click", "selector": "li.nuv-tabbed-content__tab-nav-item:has-text(\"Morningstar Ratings\")", "delayMs": 450 }
           ]
         },
         {
