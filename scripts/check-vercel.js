@@ -4,11 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 process.env.VERCEL = '1';
+process.env.BLOB_READ_WRITE_TOKEN = 'vercel_blob_rw_test';
+process.env.SITESNAP_CAPTURE_KEY = 'test-capture-key';
 
 const ROOT_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'vercel.json'), 'utf8'));
 assert.equal(config.framework, 'express');
-assert.equal(config.functions?.['index.js']?.maxDuration, 10);
+assert.equal(config.functions?.['index.js']?.maxDuration, 300);
+assert.match(config.functions?.['index.js']?.includeFiles, /core/);
 
 const { default: app } = await import('../index.js');
 const server = app.listen(0, '127.0.0.1');
@@ -26,8 +29,10 @@ try {
   assert.equal(healthResponse.status, 200);
   assert.deepEqual(health, {
     ok: true,
-    mode: 'vercel-preview',
-    captureEnabled: false,
+    mode: 'vercel-capture',
+    captureEnabled: true,
+    captureKeyRequired: true,
+    message: 'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.',
   });
 
   const sitesResponse = await fetch(`${origin}/api/sites`);
@@ -46,14 +51,27 @@ try {
     body: JSON.stringify({ siteId: 'nuveen' }),
   });
   const runResult = await runResponse.json();
-  assert.equal(runResponse.status, 503);
-  assert.equal(runResult.code, 'LOCAL_CAPTURE_ONLY');
+  assert.equal(runResponse.status, 401);
+  assert.equal(runResult.code, 'CAPTURE_KEY_REQUIRED');
+
+  nuveen.pages.forEach(page => page.steps.forEach(step => { step.enabled = false; }));
+  const emptyRunResponse = await fetch(`${origin}/api/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer test-capture-key',
+    },
+    body: JSON.stringify({ siteId: 'nuveen', config: nuveen }),
+  });
+  const emptyRunResult = await emptyRunResponse.json();
+  assert.equal(emptyRunResponse.status, 400);
+  assert.equal(emptyRunResult.code, 'HOSTED_LIMIT');
 
   const pageResponse = await fetch(`${origin}/run.html?site=nuveen`);
   assert.equal(pageResponse.status, 200);
-  assert.match(await pageResponse.text(), /Hosted preview/);
+  assert.match(await pageResponse.text(), /Hosted Chromium/);
 
-  console.log('Vercel preview smoke check passed');
+  console.log('Vercel hosted-capture smoke check passed');
 } finally {
   await new Promise(resolve => server.close(resolve));
 }

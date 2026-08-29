@@ -1,7 +1,8 @@
-import { chromium } from 'playwright';
-
 export const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
 export const MOBILE_VIEWPORT  = { width: 390, height: 844 };
+
+const IS_VERCEL = process.env.VERCEL === '1';
+let browserRuntimePromise = null;
 
 const MOBILE_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) ' +
@@ -18,12 +19,18 @@ export async function launchContext(
   options = {},
 ) {
   const isMobile = viewport.width <= 768;
-  const debug = process.env.SITESNAP_DEBUG === '1';
+  const debug = !IS_VERCEL && process.env.SITESNAP_DEBUG === '1';
+  const { chromium, launchOptions } = await loadBrowserRuntime();
 
   const browser = await chromium.launch({
+    ...launchOptions,
     headless: !debug,
     slowMo: debug ? 250 : 0,
-    args: ['--no-first-run', '--no-default-browser-check'],
+    args: [
+      ...(launchOptions.args ?? []),
+      '--no-first-run',
+      '--no-default-browser-check',
+    ],
   });
 
   const context = await browser.newContext({
@@ -79,4 +86,28 @@ export async function launchContext(
 
   const page = await context.newPage();
   return { browser, context, page };
+}
+
+function loadBrowserRuntime() {
+  browserRuntimePromise ??= IS_VERCEL ? loadHostedBrowserRuntime() : loadLocalBrowserRuntime();
+  return browserRuntimePromise;
+}
+
+async function loadLocalBrowserRuntime() {
+  const { chromium } = await import('playwright');
+  return { chromium, launchOptions: {} };
+}
+
+async function loadHostedBrowserRuntime() {
+  const [{ chromium }, { default: serverlessChromium }] = await Promise.all([
+    import('playwright-core'),
+    import('@sparticuz/chromium'),
+  ]);
+  return {
+    chromium,
+    launchOptions: {
+      args: serverlessChromium.args,
+      executablePath: await serverlessChromium.executablePath(),
+    },
+  };
 }

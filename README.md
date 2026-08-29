@@ -23,17 +23,27 @@ Use `npm run dev` to run Chromium visibly with slowed interactions for selector 
 
 Run `npm run check` for syntax validation.
 
-## Deploy the preview to Vercel
+## Run captures on Vercel
 
-The Vercel deployment is intentionally a fast configuration preview. It serves the complete Nuveen UI and all toggles, but keeps Chromium capture execution local so screenshot accuracy, job state, and ZIP output never depend on ephemeral serverless storage.
+The Vercel deployment can run the same capture configuration with a server-compatible Chromium build. Local mode remains the reference workflow and is unchanged; hosted mode is useful when a capture needs to run away from the demo computer.
 
-The repository includes `vercel.json`; no environment variables are required. In the Vercel import screen use:
+The repository includes `vercel.json`. In the Vercel import screen use:
 
 - Application preset: **Express**
 - Root directory: `./`
 - Build and output settings: leave the detected defaults
-- Environment variables: none
+- Function duration: supplied by `vercel.json` as 300 seconds
 
-Then select **Deploy**. `npm start` remains the primary full application and is unchanged from the local workflow above.
+After importing the project:
 
-Run `npm run check:vercel` to smoke-test the hosted-preview API locally without launching Chromium.
+1. Create a **public Vercel Blob** store and connect it to this project. Vercel adds `BLOB_READ_WRITE_TOKEN` automatically.
+2. Recommended: add `SITESNAP_CAPTURE_KEY` as a Production and Preview environment variable. The studio asks for this key before a hosted run so public visitors cannot spend capture resources.
+3. Confirm Fluid Compute is enabled for the project, then redeploy.
+
+Hosted runs are synchronous, support up to 60 screenshots at 1×, and require the browser tab to remain open. The completed ZIP is uploaded directly to a unique public Blob URL because capture archives can exceed Vercel's function-response limit. Review or remove old archives from the Blob store when they are no longer needed.
+
+If Blob is not connected, the hosted UI stays available for configuration and shows a setup-required banner instead of a capture button.
+
+Then select **Deploy**. `npm start` remains the primary local application and continues to support live thumbnails, local ZIP retention, 2× output, and unrestricted local runs.
+
+Run `npm run check:vercel` to smoke-test hosted runtime detection, configuration delivery, and capture-key protection without launching Chromium.

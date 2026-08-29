@@ -89,7 +89,7 @@
       <section class="panel" aria-labelledby="projects-title">
         <div class="panel-head"><h2 id="projects-title">Capture projects</h2><span>Choose a suite</span></div>
         <div class="site-list" id="sites"><div class="loading">Loading local configuration…</div></div>
-        <div class="local-note"><span class="dot"></span> Runs only on this computer. No credentials or cloud service required.</div>
+        <div class="local-note" id="runtime-note"><span class="dot"></span> Local capture keeps screenshots on this computer.</div>
       </section>
     </main>
   </div>
@@ -98,9 +98,19 @@
     async function boot() {
       const list = document.getElementById('sites');
       try {
-        const response = await fetch('/api/sites');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const sites = await response.json();
+        const [sitesResponse, healthResponse] = await Promise.all([
+          fetch('/api/sites'),
+          fetch('/api/health', { cache: 'no-store' }),
+        ]);
+        if (!sitesResponse.ok) throw new Error(`HTTP ${sitesResponse.status}`);
+        if (!healthResponse.ok) throw new Error(`HTTP ${healthResponse.status}`);
+        const sites = await sitesResponse.json();
+        const health = await healthResponse.json();
+        document.getElementById('runtime-note').lastChild.textContent = health.mode === 'local'
+          ? ' Local capture keeps screenshots on this computer.'
+          : (health.captureEnabled
+            ? ' Hosted Chromium capture is enabled; local mode remains available.'
+            : ' Hosted capture needs a connected Vercel Blob store.');
         if (!sites.length) {
           list.innerHTML = '<div class="loading">No capture projects are configured.</div>';
           return;

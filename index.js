@@ -1,21 +1,29 @@
 import express from 'express';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { exec } from 'child_process';
+import { rm } from 'fs/promises';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
 const MAX_JOBS = 20;
+const MAX_HOSTED_CAPTURES = 60;
 const IS_VERCEL = process.env.VERCEL === '1';
-const RUNTIME_MODE = IS_VERCEL ? 'vercel-preview' : 'local';
-const CAPTURE_ENABLED = !IS_VERCEL;
+const HOSTED_STORAGE_READY = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const RUNTIME_MODE = IS_VERCEL
+  ? (HOSTED_STORAGE_READY ? 'vercel-capture' : 'vercel-setup')
+  : 'local';
+const CAPTURE_ENABLED = !IS_VERCEL || HOSTED_STORAGE_READY;
+const CAPTURE_KEY_REQUIRED = IS_VERCEL && Boolean(process.env.SITESNAP_CAPTURE_KEY);
 const LOCAL_RUNNER_PATH = ['.', 'core', 'runner.js'].join('/');
 
 const app = express();
 const jobs = new Map();
 let localRunnerPromise = null;
+let hostedCaptureActive = false;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '5mb' }));
@@ -31,6 +39,8 @@ app.get('/api/health', (_request, response) => {
     ok: true,
     mode: RUNTIME_MODE,
     captureEnabled: CAPTURE_ENABLED,
+    captureKeyRequired: CAPTURE_KEY_REQUIRED,
+    message: hostedRuntimeMessage(),
   });
 });
 
@@ -61,11 +71,11 @@ app.get('/site-image/:siteId', (request, response) => {
   return response.sendFile(imagePath);
 });
 
-app.post('/api/run', (request, response) => {
+app.post('/api/run', async (request, response) => {
   if (!CAPTURE_ENABLED) {
     return response.status(503).json({
-      code: 'LOCAL_CAPTURE_ONLY',
-      error: 'Hosted preview is read-only. Run SiteSnap locally for deterministic Chromium captures.',
+      code: 'HOSTED_STORAGE_REQUIRED',
+      error: 'Hosted capture needs a public Vercel Blob store connected to this project.',
     });
   }
 
@@ -76,10 +86,18 @@ app.post('/api/run', (request, response) => {
     return response.status(400).json({ error: 'Invalid capture configuration.' });
   }
 
+  if (IS_VERCEL) {
+    if (!isHostedRequestAuthorized(request)) {
+      return response.status(401).json({
+        code: 'CAPTURE_KEY_REQUIRED',
+        error: 'The server capture key is missing or incorrect.',
+      });
+    }
+    return runHostedCapture(request, response, siteDir, siteId, requestedJobId, configOverride);
+  }
+
   evictOldJobs();
-  const jobId = typeof requestedJobId === 'string' && requestedJobId.length <= 100
-    ? requestedJobId
-    : randomUUID();
+  const jobId = normalizeJobId(requestedJobId);
   const job = {
     status: 'running',
     entries: [],
@@ -150,6 +168,217 @@ app.get('/api/download/:jobId', (request, response) => {
 app.get('/run', (_request, response) => {
   response.sendFile(path.join(ROOT_DIR, 'ui', 'run.html'));
 });
+
+async function runHostedCapture(
+  _request,
+  response,
+  siteDir,
+  siteId,
+  requestedJobId,
+  configOverride,
+) {
+  if (hostedCaptureActive) {
+    return response.status(409).json({
+      code: 'CAPTURE_ALREADY_RUNNING',
+      error: 'This server instance is already running a capture. Try again shortly.',
+    });
+  }
+
+  hostedCaptureActive = true;
+  response.setHeader('Cache-Control', 'no-store');
+  const jobId = normalizeJobId(requestedJobId);
+  const outputBaseDir = path.join(os.tmpdir(), `sitesnap-${jobId}`);
+
+  try {
+    const defaultConfig = readJson(path.join(siteDir, 'config.json'));
+    const hostedConfig = sanitizeHostedConfig(defaultConfig, configOverride);
+    enforceHostedLimits(hostedConfig);
+
+    const progress = { total: 0, entries: [], lastLog: null };
+    const onProgress = message => {
+      if (message && typeof message === 'object') {
+        if (message.type === 'total') progress.total = Number(message.total) || 0;
+        if (message.type === 'capture') {
+          progress.entries.push({
+            label: message.label,
+            filename: message.filename,
+            index: progress.entries.length,
+          });
+        }
+      } else {
+        progress.lastLog = String(message);
+      }
+    };
+
+    const run = await loadLocalRunner();
+    const zipPath = await run(siteDir, null, hostedConfig, onProgress, outputBaseDir);
+    const downloadUrl = await uploadHostedArchive(zipPath, siteId, jobId);
+
+    return response.json({
+      jobId,
+      status: 'done',
+      entries: progress.entries,
+      total: progress.total,
+      lastLog: 'Capture complete. ZIP archive uploaded.',
+      downloadUrl,
+    });
+  } catch (error) {
+    const status = error.code === 'HOSTED_LIMIT' ? 400 : 500;
+    return response.status(status).json({
+      code: error.code || 'HOSTED_CAPTURE_FAILED',
+      error: error.message || 'Hosted capture failed.',
+    });
+  } finally {
+    hostedCaptureActive = false;
+    await rm(outputBaseDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+async function uploadHostedArchive(zipPath, siteId, jobId) {
+  const { put } = await import('@vercel/blob');
+  const pathname = `sitesnap/${siteId}/${jobId}/${path.basename(zipPath)}`;
+  const blob = await put(pathname, fs.createReadStream(zipPath), {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: 'application/zip',
+    multipart: true,
+  });
+  return blob.downloadUrl || blob.url;
+}
+
+function sanitizeHostedConfig(defaultConfig, requestedConfig) {
+  const sanitized = structuredClone(defaultConfig);
+  if (!requestedConfig) return sanitized;
+
+  for (const deviceName of ['desktop', 'mobile']) {
+    const target = sanitized.devices?.[deviceName];
+    const requested = requestedConfig.devices?.[deviceName];
+    if (!target || !requested) continue;
+    target.enabled = requested.enabled !== false;
+    target.viewport = sanitizeDimensions(requested.viewport, target.viewport);
+    target.deviceScaleFactor = Number(requested.deviceScaleFactor) === 2 ? 2 : 1;
+  }
+
+  const requestedPages = new Map(
+    (requestedConfig.pages ?? []).map(page => [page?.id, page]),
+  );
+  for (const page of sanitized.pages) {
+    const requestedPage = requestedPages.get(page.id);
+    if (!requestedPage) {
+      page.enabled = false;
+      page.steps.forEach(step => { step.enabled = false; });
+      continue;
+    }
+    page.enabled = requestedPage.enabled !== false;
+    const requestedSteps = new Map(
+      (requestedPage.steps ?? []).map(step => [step?.id, step]),
+    );
+    for (const step of page.steps ?? []) {
+      const requestedStep = requestedSteps.get(step.id);
+      if (!requestedStep) {
+        step.enabled = false;
+        continue;
+      }
+      step.enabled = requestedStep.enabled === true;
+      step.includeMobile = requestedStep.includeMobile !== false;
+      step.captureMode = sanitizeCaptureMode(requestedStep.captureMode, step);
+      step.desktop = sanitizeDimensions(requestedStep.desktop, step.desktop);
+      step.mobile = sanitizeDimensions(requestedStep.mobile, step.mobile);
+      copyEditableActionValues(step.actions, requestedStep.actions);
+    }
+  }
+
+  return sanitized;
+}
+
+function sanitizeCaptureMode(requestedMode, defaultStep) {
+  const allowed = new Set(['viewport', 'fullPage']);
+  if (defaultStep.selector || defaultStep.focusSelector) allowed.add('element');
+  return allowed.has(requestedMode) ? requestedMode : (defaultStep.captureMode || 'viewport');
+}
+
+function sanitizeDimensions(requested, fallback = {}) {
+  return {
+    width: clampInteger(requested?.width, fallback?.width ?? 1440, 320, 1920),
+    height: clampInteger(requested?.height, fallback?.height ?? 900, 320, 1600),
+  };
+}
+
+function copyEditableActionValues(defaultActions = [], requestedActions = []) {
+  defaultActions.forEach((action, index) => {
+    if (action.editable !== true) return;
+    const requested = requestedActions[index];
+    if (!requested || requested.type !== action.type) return;
+    const value = String(requested.value ?? '').slice(0, 200);
+    if (Array.isArray(action.options) && !action.options.includes(value)) return;
+    action.value = value;
+  });
+}
+
+function enforceHostedLimits(config) {
+  const enabled = countConfiguredCaptures(config);
+  if (!enabled) throw hostedLimitError('Enable at least one capture before starting a server run.');
+  if (enabled > MAX_HOSTED_CAPTURES) {
+    throw hostedLimitError(`Hosted runs support up to ${MAX_HOSTED_CAPTURES} captures at a time.`);
+  }
+  for (const [name, device] of Object.entries(config.devices ?? {})) {
+    if (device.enabled !== false && Number(device.deviceScaleFactor) > 1) {
+      throw hostedLimitError(`Hosted ${name} capture supports 1× output. Use local mode for 2× output.`);
+    }
+  }
+}
+
+function countConfiguredCaptures(config) {
+  return Object.entries(config.devices ?? {}).reduce((total, [deviceName, device]) => {
+    if (device.enabled === false) return total;
+    return total + config.pages.reduce((pageTotal, page) => {
+      if (page.enabled === false) return pageTotal;
+      return pageTotal + (page.steps ?? []).filter(step => {
+        if (step.enabled !== true) return false;
+        if (deviceName === 'mobile' && (step.desktopOnly || step.includeMobile === false)) return false;
+        if (deviceName === 'desktop' && step.mobileOnly) return false;
+        return true;
+      }).length;
+    }, 0);
+  }, 0);
+}
+
+function hostedLimitError(message) {
+  const error = new Error(message);
+  error.code = 'HOSTED_LIMIT';
+  return error;
+}
+
+function clampInteger(value, fallback, minimum, maximum) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(minimum, Math.min(maximum, Math.round(number)));
+}
+
+function normalizeJobId(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value)
+    ? value
+    : randomUUID();
+}
+
+function isHostedRequestAuthorized(request) {
+  const expected = process.env.SITESNAP_CAPTURE_KEY;
+  if (!expected) return true;
+  const authorization = request.get('authorization') || '';
+  const provided = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length
+    && timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function hostedRuntimeMessage() {
+  if (!IS_VERCEL) return null;
+  if (!HOSTED_STORAGE_READY) {
+    return 'Hosted setup required · Connect a public Vercel Blob store, then redeploy to enable server capture.';
+  }
+  return 'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.';
+}
 
 function listSites() {
   if (!fs.existsSync(SITES_DIR)) return [];

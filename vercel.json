@@ -4,9 +4,9 @@
   "installCommand": "npm ci --ignore-scripts --omit=dev",
   "functions": {
     "index.js": {
-      "maxDuration": 10,
-      "includeFiles": "{ui,sites}/**",
-      "excludeFiles": "core/**"
+      "maxDuration": 300,
+      "includeFiles": "{ui,sites,core}/**",
+      "excludeFiles": "sites/**/output/**"
     }
   },
   "headers": [

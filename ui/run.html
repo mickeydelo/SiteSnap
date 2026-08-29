@@ -122,6 +122,7 @@
     .captures { min-height: 160px; overflow: auto; padding: 12px; display: grid; gap: 8px; }
     .capture-row { display: grid; grid-template-columns: 132px 1fr; gap: 12px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 11px; }
     .capture-row img { width: 132px; height: 76px; border-radius: 7px; object-fit: cover; object-position: top; background: #e9efed; }
+    .capture-thumb { width: 132px; height: 76px; display: grid; place-items: center; border-radius: 7px; color: #78909a; background: #e9efed; font-size: 22px; }
     .capture-row strong { font-size: 11px; }
     .run-error { display: none; margin: 14px 18px 0; padding: 10px 12px; border: 1px solid #ecc7c7; border-radius: 9px; color: var(--danger); background: #fff5f5; font-size: 12px; }
     .run-actions { display: flex; gap: 9px; padding: 14px 18px 18px; border-top: 1px solid var(--line); }
@@ -146,7 +147,7 @@
   <div class="app">
     <aside class="sidebar" id="sidebar"><div class="skeleton"></div></aside>
     <section class="workspace">
-      <div class="runtime-banner hidden" id="runtime-banner">Hosted preview · Configure every state here, then run locally for exact Chromium output.</div>
+      <div class="runtime-banner hidden" id="runtime-banner"></div>
       <div class="controls">
         <div class="preset-row">
           <button class="preset primary" data-preset="recommended">Recommended</button>
@@ -182,7 +183,7 @@
     const state = {
       siteId: '', site: null, config: null, defaults: null,
       activePage: 0, query: '', pollTimer: null, jobId: null, rendered: 0, running: false,
-      runtime: { mode: 'local', captureEnabled: true },
+      captureKey: '', runtime: { mode: 'local', captureEnabled: true, captureKeyRequired: false },
     };
 
     async function boot() {
@@ -205,10 +206,11 @@
         state.defaults = clone(config);
         state.runtime = health;
         document.getElementById('project-name').textContent = state.site.name;
-        const hosted = state.runtime.captureEnabled === false;
+        const hosted = state.runtime.mode !== 'local';
         document.getElementById('project-note').textContent = hosted
-          ? 'Hosted configuration preview · capture locally'
+          ? (state.runtime.captureEnabled ? 'Hosted Chromium capture' : 'Hosted capture setup required')
           : (state.site.description || 'Local capture configuration');
+        document.getElementById('runtime-banner').textContent = state.runtime.message || '';
         document.getElementById('runtime-banner').classList.toggle('hidden', !hosted);
         bindStaticEvents();
         renderAll();
@@ -370,9 +372,9 @@
       const total = countCaptures();
       const button = document.getElementById('capture-button');
       if (state.runtime.captureEnabled === false) {
-        button.textContent = `Preview · ${total}`;
+        button.textContent = `Setup required · ${total}`;
         button.disabled = true;
-        button.title = 'Capture execution is intentionally local-only.';
+        button.title = state.runtime.message || 'Hosted capture setup is incomplete.';
         return;
       }
       button.textContent = `Capture · ${total}`;
@@ -402,12 +404,26 @@
       showRunModal(total);
       updateSummary();
       try {
+        if (state.runtime.captureKeyRequired && !state.captureKey) {
+          state.captureKey = window.prompt('Enter the SiteSnap server capture key:') || '';
+          if (!state.captureKey) throw new Error('A server capture key is required.');
+        }
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.captureKey) headers.Authorization = `Bearer ${state.captureKey}`;
+        if (state.runtime.mode === 'vercel-capture') {
+          document.getElementById('run-status').textContent = 'Hosted Chromium is running. Keep this tab open…';
+        }
         const response = await fetch('/api/run', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers,
           body: JSON.stringify({ jobId: state.jobId, siteId: state.siteId, config: state.config })
         });
         const body = await response.json().catch(() => ({}));
+        if (response.status === 401) state.captureKey = '';
         if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+        if (body.status === 'done') {
+          renderCaptures(body.entries || []);
+          return finishRun(body.total || total, body.downloadUrl);
+        }
         poll();
       } catch (error) { showRunError(error.message); }
     }
@@ -434,8 +450,14 @@
       if (state.rendered === 0 && entries.length) list.innerHTML = '';
       for (let index = state.rendered; index < entries.length; index += 1) {
         const entry = entries[index];
+        const thumbnailUrl = entry.thumbnailUrl || (state.runtime.mode === 'local'
+          ? `/api/thumbnail/${encodeURIComponent(state.jobId)}/${entry.index}`
+          : null);
+        const thumbnail = thumbnailUrl
+          ? node('img', { src: thumbnailUrl, alt: '' })
+          : node('div', { class: 'capture-thumb', text: '✓' });
         list.appendChild(node('div', { class: 'capture-row' },
-          node('img', { src: `/api/thumbnail/${encodeURIComponent(state.jobId)}/${entry.index}`, alt: '' }),
+          thumbnail,
           node('strong', { text: entry.label })
         ));
         state.rendered += 1;
@@ -457,7 +479,7 @@
       document.getElementById('close-modal').style.display = 'none';
     }
 
-    function finishRun(total) {
+    function finishRun(total, downloadUrl = null) {
       stopPoll();
       state.running = false;
       document.getElementById('spinner').classList.add('hidden');
@@ -465,7 +487,7 @@
       document.getElementById('run-status').textContent = 'ZIP archive is ready.';
       document.getElementById('progress-fill').style.width = '100%';
       document.getElementById('progress-label').textContent = `${state.rendered} of ${total}`;
-      const download = document.getElementById('download'); download.href = `/api/download/${encodeURIComponent(state.jobId)}`; download.style.display = 'block';
+      const download = document.getElementById('download'); download.href = downloadUrl || `/api/download/${encodeURIComponent(state.jobId)}`; download.style.display = 'block';
       document.getElementById('close-modal').style.display = 'block';
       updateSummary();
     }

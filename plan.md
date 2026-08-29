@@ -30,14 +30,16 @@ SiteSnap is a local-first screenshot studio for capturing complete responsive pa
 - The UI sends an in-memory config override to `POST /api/run`.
 - Progress and thumbnails are available while the run is active.
 - Successful runs are retained under `sites/nuveen/output/` and packaged as ZIP files.
-- Vercel serves the same configuration UI as a lightweight hosted preview.
-- Hosted capture execution is intentionally disabled because serverless memory and files are not durable across the current polling workflow.
-- The local runtime remains the canonical capture environment for speed and pixel accuracy.
+- Vercel serves the same configuration UI and can execute synchronous 1× capture runs with server-compatible Chromium.
+- Hosted ZIP archives use multipart uploads to a connected public Vercel Blob store, avoiding function response-size and ephemeral-filesystem limits.
+- Hosted configuration overrides are reduced to checked-in targets, selectors, and actions before execution; an optional capture key protects compute usage.
+- The local runtime remains the canonical capture environment for live thumbnails, 2× output, retained archives, speed, and pixel accuracy.
 
 ## Validation expectations
 
 - `npm run check` passes.
 - `npm audit --omit=dev` reports zero known vulnerabilities.
 - The local health, site, config, run, status, thumbnail, and download routes return expected responses.
+- The hosted health and authorization paths pass without launching Chromium.
 - At least one desktop and one mobile live pass validates the dynamic Nuveen states.
 - Full-page output width equals the selected viewport width and includes the footer.
