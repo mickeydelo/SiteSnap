@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID, timingSafeEqual } from 'crypto';
 import { exec } from 'child_process';
 import { rm } from 'fs/promises';
+import { run as runCaptures } from './core/runner.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
@@ -21,7 +22,6 @@ const CAPTURE_KEY_REQUIRED = IS_VERCEL && Boolean(process.env.SITESNAP_CAPTURE_K
 
 const app = express();
 const jobs = new Map();
-let localRunnerPromise = null;
 let hostedCaptureActive = false;
 
 app.disable('x-powered-by');
@@ -124,8 +124,8 @@ app.post('/api/run', async (request, response) => {
     if (job.log.length > 200) job.log.shift();
   };
 
-  loadLocalRunner()
-    .then(run => run(siteDir, null, configOverride ?? null, onProgress))
+  Promise.resolve()
+    .then(() => runCaptures(siteDir, null, configOverride ?? null, onProgress))
     .then(zipPath => Object.assign(job, { status: 'done', zipPath }))
     .catch(error => Object.assign(job, { status: 'error', error: error.message }));
 
@@ -209,8 +209,7 @@ async function runHostedCapture(
       }
     };
 
-    const run = await loadLocalRunner();
-    const zipPath = await run(siteDir, null, hostedConfig, onProgress, outputBaseDir);
+    const zipPath = await runCaptures(siteDir, null, hostedConfig, onProgress, outputBaseDir);
     const downloadUrl = await uploadHostedArchive(zipPath, siteId, jobId);
 
     return response.json({
@@ -430,11 +429,6 @@ function setHostedCache(response, seconds) {
     'Cache-Control',
     `public, max-age=0, s-maxage=${seconds}, stale-while-revalidate=${seconds * 12}`,
   );
-}
-
-function loadLocalRunner() {
-  localRunnerPromise ??= import('./core/runner.js').then(module => module.run);
-  return localRunnerPromise;
 }
 
 function startServer(port) {
