@@ -7,7 +7,7 @@ Read `docs/ARCHITECTURE.md` before changing runtime boundaries or capture semant
 - Local mode is the canonical runtime and must pass after every hosted change.
 - Vercel configuration cannot override checked-in URLs, paths, selectors, or action types.
 - A run is `done` only when every requested screenshot succeeds. Preserve `partial` results, debug images, and the manifest.
-- Desktop and mobile use isolated contexts in one Chromium process.
+- Desktop and mobile always use isolated browser state. Local mode shares one Chromium process; hosted mode uses a fresh bounded process per device because its serverless Chromium cannot safely reuse contexts after capture work.
 - Do not pre-dismiss OneTrust globally; the homepage cookie-notice state depends on a clean context.
 - Keep `ui/` as source. Never edit generated `public/`; run `npm run build`.
 - Keep styles in CSS files and behavior in JavaScript files. The zero-build client is intentional.

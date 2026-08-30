@@ -394,6 +394,7 @@ async function runHostedCapture(
       outputBaseDir,
       null,
       {
+        browserPerDevice: true,
         includePreviews: streamsProgress,
         mobileFirst: true,
         nativeFullPage: true,

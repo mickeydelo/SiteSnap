@@ -38,6 +38,7 @@ try {
     outputDir,
     null,
     {
+      browserPerDevice: true,
       includePreviews: true,
       mobileFirst: true,
       nativeFullPage: true,

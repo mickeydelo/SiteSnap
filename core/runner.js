@@ -44,7 +44,10 @@ export async function run(
 
   const devices = orderedDevices(config, runtimeOptions.mobileFirst === true);
   const expectedCaptures = countTotalCaptures(config);
-  const parallelDevices = runtimeOptions.parallelDevices !== false && devices.length > 1;
+  const browserPerDevice = runtimeOptions.browserPerDevice === true;
+  const parallelDevices = !browserPerDevice
+    && runtimeOptions.parallelDevices !== false
+    && devices.length > 1;
   const startedAt = new Date();
   await log({ type: 'total', total: expectedCaptures });
 
@@ -54,34 +57,54 @@ export async function run(
   fs.mkdirSync(runDir, { recursive: true });
 
   await log('Preparing capture workspace…');
-  await log(parallelDevices
-    ? `[${devices.join(' + ')} — one Chromium process, isolated contexts in parallel]`
-    : `[${devices.join(' + ')} — one Chromium process, one isolated context at a time]`);
-  await log('Launching Chromium…');
-  const browser = await launchBrowser();
+  await log(browserPerDevice
+    ? `[${devices.join(' + ')} — a fresh Chromium process for each device]`
+    : (parallelDevices
+      ? `[${devices.join(' + ')} — one Chromium process, isolated contexts in parallel]`
+      : `[${devices.join(' + ')} — one Chromium process, one isolated context at a time]`));
   let browserVersion = null;
-  let results;
-  try {
-    browserVersion = browser.version();
-    const runOneDevice = device => {
-      const outputDir = path.join(runDir, device);
-      fs.mkdirSync(outputDir, { recursive: true });
-      return runDevice(browser, config, credentials, outputDir, runDir, device, log, runtimeOptions);
-    };
-    if (parallelDevices) {
-      results = await Promise.allSettled(devices.map(runOneDevice));
-    } else {
-      results = [];
-      for (const device of devices) {
-        try {
-          results.push({ status: 'fulfilled', value: await runOneDevice(device) });
-        } catch (reason) {
-          results.push({ status: 'rejected', reason });
+  let results = [];
+  const runOneDevice = (browser, device) => {
+    const outputDir = path.join(runDir, device);
+    fs.mkdirSync(outputDir, { recursive: true });
+    return runDevice(browser, config, credentials, outputDir, runDir, device, log, runtimeOptions);
+  };
+
+  if (browserPerDevice) {
+    for (const device of devices) {
+      let browser = null;
+      try {
+        await log(`[${device}] Launching Chromium…`);
+        browser = await withTimeout(launchBrowser(), 20000, `${device} browser launch timed out`);
+        browserVersion ||= browser.version();
+        results.push({ status: 'fulfilled', value: await runOneDevice(browser, device) });
+      } catch (reason) {
+        results.push({ status: 'rejected', reason });
+      } finally {
+        if (browser) {
+          await withTimeout(browser.close(), 5000, 'Browser cleanup timed out').catch(() => {});
         }
       }
     }
-  } finally {
-    await withTimeout(browser.close(), 5000, 'Browser cleanup timed out').catch(() => {});
+  } else {
+    await log('Launching Chromium…');
+    const browser = await withTimeout(launchBrowser(), 20000, 'Browser launch timed out');
+    try {
+      browserVersion = browser.version();
+      if (parallelDevices) {
+        results = await Promise.allSettled(devices.map(device => runOneDevice(browser, device)));
+      } else {
+        for (const device of devices) {
+          try {
+            results.push({ status: 'fulfilled', value: await runOneDevice(browser, device) });
+          } catch (reason) {
+            results.push({ status: 'rejected', reason });
+          }
+        }
+      }
+    } finally {
+      await withTimeout(browser.close(), 5000, 'Browser cleanup timed out').catch(() => {});
+    }
   }
 
   const captures = [];
