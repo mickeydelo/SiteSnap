@@ -11,6 +11,9 @@ const DEFAULT_DEVICES = {
   desktop: { enabled: true, viewport: DESKTOP_VIEWPORT, deviceScaleFactor: 1 },
   mobile:  { enabled: true, viewport: MOBILE_VIEWPORT, deviceScaleFactor: 1 },
 };
+const PREVIEW_WIDTH = 264;
+const PREVIEW_HEIGHT = 152;
+const PREVIEW_TIMEOUT_MS = 6000;
 
 class Sequence {
   constructor() { this.number = 1; }
@@ -41,6 +44,7 @@ export async function run(
 
   const devices = enabledDevices(config);
   const expectedCaptures = countTotalCaptures(config);
+  const parallelDevices = runtimeOptions.parallelDevices !== false && devices.length > 1;
   const startedAt = new Date();
   await log({ type: 'total', total: expectedCaptures });
 
@@ -50,18 +54,32 @@ export async function run(
   fs.mkdirSync(runDir, { recursive: true });
 
   await log('Preparing capture workspace…');
-  await log(`[${devices.join(' + ')} — one Chromium process, isolated contexts in parallel]`);
+  await log(parallelDevices
+    ? `[${devices.join(' + ')} — one Chromium process, isolated contexts in parallel]`
+    : `[${devices.join(' + ')} — one Chromium process, one isolated context at a time]`);
   await log('Launching Chromium…');
   const browser = await launchBrowser();
   let browserVersion = null;
   let results;
   try {
     browserVersion = browser.version();
-    results = await Promise.allSettled(devices.map(device => {
+    const runOneDevice = device => {
       const outputDir = path.join(runDir, device);
       fs.mkdirSync(outputDir, { recursive: true });
       return runDevice(browser, config, credentials, outputDir, runDir, device, log, runtimeOptions);
-    }));
+    };
+    if (parallelDevices) {
+      results = await Promise.allSettled(devices.map(runOneDevice));
+    } else {
+      results = [];
+      for (const device of devices) {
+        try {
+          results.push({ status: 'fulfilled', value: await runOneDevice(device) });
+        } catch (reason) {
+          results.push({ status: 'rejected', reason });
+        }
+      }
+    }
   } finally {
     await browser.close().catch(() => {});
   }
@@ -336,6 +354,7 @@ async function captureStep(
   }
 
   const metadata = readPngMetadata(filepath);
+  if (runtimeOptions.includePreviews) await log(`  [${device}] Preparing live preview…`);
   const thumbnailUrl = runtimeOptions.includePreviews ? await createPreviewDataUrl(page) : null;
   await log({
     type: 'capture',
@@ -365,26 +384,62 @@ async function createPreviewDataUrl(page) {
     const viewport = page.viewportSize();
     if (!viewport) return null;
     const offset = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-    const scale = Math.min(264 / viewport.width, 152 / viewport.height, 1);
+    const clip = resolvePreviewClip(viewport, offset);
     session = await page.context().newCDPSession(page);
-    const { data } = await session.send('Page.captureScreenshot', {
-      format: 'jpeg',
-      quality: 70,
-      fromSurface: true,
-      captureBeyondViewport: false,
-      clip: {
-        x: offset.x,
-        y: offset.y,
-        width: viewport.width,
-        height: viewport.height,
-        scale,
-      },
-    });
+    const { data } = await withTimeout(
+      session.send('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality: 78,
+        fromSurface: true,
+        captureBeyondViewport: false,
+        clip,
+      }),
+      PREVIEW_TIMEOUT_MS,
+      'Live preview timed out',
+    );
     return data ? `data:image/jpeg;base64,${data}` : null;
   } catch {
     return null;
   } finally {
-    if (session) await session.detach().catch(() => {});
+    if (session) {
+      await withTimeout(session.detach(), 750, 'Preview session cleanup timed out').catch(() => {});
+    }
+  }
+}
+
+export function resolvePreviewClip(viewport, offset = { x: 0, y: 0 }) {
+  const viewportWidth = Math.max(1, Number(viewport?.width) || 1);
+  const viewportHeight = Math.max(1, Number(viewport?.height) || 1);
+  const targetRatio = PREVIEW_WIDTH / PREVIEW_HEIGHT;
+  const viewportRatio = viewportWidth / viewportHeight;
+  const width = viewportRatio > targetRatio
+    ? viewportHeight * targetRatio
+    : viewportWidth;
+  const height = viewportRatio > targetRatio
+    ? viewportHeight
+    : viewportWidth / targetRatio;
+
+  return {
+    x: Math.max(0, Number(offset?.x) || 0),
+    y: Math.max(0, Number(offset?.y) || 0),
+    width,
+    height,
+    scale: Math.min(PREVIEW_WIDTH / width, PREVIEW_HEIGHT / height, 1),
+  };
+}
+
+async function withTimeout(promise, timeoutMs, message) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

@@ -305,6 +305,7 @@ async function runHostedCapture(
   hostedCaptureActive = true;
   response.setHeader('Cache-Control', 'no-store, no-transform');
   const progress = { total: countConfiguredCaptures(hostedConfig), entries: [], failures: [], lastLog: null };
+  let heartbeatTimer = null;
   if (streamsProgress) {
     response.status(200);
     response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
@@ -318,6 +319,19 @@ async function runHostedCapture(
       failed: 0,
       processed: 0,
     });
+    heartbeatTimer = setInterval(() => {
+      writeProgressEvent(response, {
+        type: 'heartbeat',
+        message: progress.lastLog
+          ? `${progress.lastLog} · still working…`
+          : 'Chromium is still working…',
+        total: progress.total,
+        completed: progress.entries.length,
+        failed: progress.failures.length,
+        processed: progress.entries.length + progress.failures.length,
+      });
+    }, 12000);
+    heartbeatTimer.unref?.();
   }
 
   try {
@@ -379,7 +393,10 @@ async function runHostedCapture(
       onProgress,
       outputBaseDir,
       null,
-      { includePreviews: streamsProgress },
+      {
+        includePreviews: streamsProgress,
+        parallelDevices: false,
+      },
     );
     if (streamsProgress) writeProgressEvent(response, {
       type: 'status',
@@ -429,6 +446,7 @@ async function runHostedCapture(
       error: error.message || 'Hosted capture failed.',
     });
   } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     hostedCaptureActive = false;
     await rm(outputBaseDir, { recursive: true, force: true }).catch(() => {});
   }

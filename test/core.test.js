@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   countTotalCaptures,
+  resolvePreviewClip,
   sanitizeName,
   validateConfig,
 } from '../core/runner.js';
@@ -88,6 +89,21 @@ test('filenames are deterministic and filesystem-safe', () => {
   assert.equal(sanitizeName('Morningstar Ratings · Class I'), 'morningstar-ratings-class-i');
   assert.equal(sanitizeName('../../'), 'capture');
   assert.equal(sanitizeName('A'.repeat(150)).length, 100);
+});
+
+test('hosted previews crop desktop and mobile viewports to a sharp landscape frame', () => {
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    const clip = resolvePreviewClip(viewport, { x: 0, y: 120 });
+    assert.equal(Math.round(clip.width * clip.scale), 264);
+    assert.equal(Math.round(clip.height * clip.scale), 152);
+    assert.equal(clip.x, 0);
+    assert.equal(clip.y, 120);
+    assert.ok(clip.width <= viewport.width);
+    assert.ok(clip.height <= viewport.height);
+  }
 });
 
 test('native select actions skip waits when the requested option is already selected', async () => {

@@ -21,6 +21,7 @@ export async function captureScreenshot(page, filepath, { fullPage = true, after
         fullPage: false,
         animations: 'disabled',
         caret: 'hide',
+        timeout: 30000,
       });
     } finally {
       await page.setViewportSize(viewport);
@@ -33,6 +34,7 @@ export async function captureScreenshot(page, filepath, { fullPage = true, after
     fullPage,
     animations: 'disabled',
     caret: 'hide',
+    timeout: 30000,
   });
 }
 

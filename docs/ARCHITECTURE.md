@@ -23,7 +23,7 @@ in-memory job status + thumbnails                  public Vercel Blob URL
 retained sites/<id>/output                         ephemeral /tmp cleaned
 ```
 
-Desktop and mobile contexts run concurrently inside one Chromium process. They never share cookies, storage, or viewport state. All states for a page/device reuse one page load unless a state explicitly requests a reset or a prior state fails.
+Desktop and mobile never share cookies, storage, or viewport state. Local mode runs both isolated contexts concurrently; Vercel runs them one at a time inside the same Chromium process to avoid competing screenshot commands. All states for a page/device reuse one page load unless a state explicitly requests a reset or a prior state fails.
 
 ## Runtime boundaries
 
@@ -32,6 +32,7 @@ Desktop and mobile contexts run concurrently inside one Chromium process. They n
 | UI source | Served directly from `ui/` | `ui/` is built to CDN-served `public/` |
 | Browser | `playwright` + installed Chromium | `playwright-core` + `@sparticuz/chromium` |
 | Progress | Polling, live thumbnails | Streaming NDJSON, exact count, inline thumbnails |
+| Device passes | Parallel isolated contexts | Sequential isolated contexts for serverless stability |
 | Output | Retained under the site output directory | Ephemeral `/tmp`, then public Blob ZIP |
 | Scale | 1× or 2× | 1× |
 | Run limit | Configuration/device limits only | 60 outputs and 300 seconds |
@@ -43,11 +44,11 @@ Desktop and mobile contexts run concurrently inside one Chromium process. They n
 
 - `core/browser.js` selects the runtime and creates isolated contexts. It blocks common analytics/tracker requests, blocks service workers, disables persisted storage, fixes locale/color scheme/reduced motion, and disables transitions and animations.
 - `core/actions.js` implements the declarative action vocabulary: click, input, select, checkbox, wait, waitFor, scrollTo, press, and cookie acceptance.
-- `core/runner.js` validates configuration, launches one browser, runs device contexts in parallel, isolates failed states, records PNG metadata/checksums, and produces the run manifest.
+- `core/runner.js` validates configuration, launches one browser, schedules isolated device contexts for the active runtime, isolates failed states, records PNG metadata/checksums, and produces the run manifest.
 - `core/capture.js` stabilizes lazy assets and handles full-page screenshots without widening Nuveen output to include off-canvas chrome.
 - `core/zip.js` packages already-compressed PNGs at low compression for fast completion.
 
-Hosted clients request `application/x-ndjson`. The function flushes a start event before launching Chromium, then streams status, failure, and capture events. Each completed hosted capture includes a JPEG preview fitted within 264×152 pixels through the Chromium DevTools screenshot path; this avoids decoding the full PNG inside the target page. The original PNG remains only in the ZIP. A final event supplies the Blob download URL. JSON remains supported for non-streaming API clients.
+Hosted clients request `application/x-ndjson`. The function flushes a start event before launching Chromium, then streams status, heartbeat, failure, and capture events. Desktop and mobile use sequential isolated contexts so competing screenshot commands cannot terminate a constrained serverless Chromium target. Each completed hosted capture includes a JPEG preview cropped to a sharp 264×152 landscape frame through the Chromium DevTools screenshot path; preview work has a hard deadline and cannot block the original PNG. The original PNG remains only in the ZIP. A final event supplies the Blob download URL. JSON remains supported for non-streaming API clients.
 
 The configuration UI calls `POST /api/warmup` once after it becomes interactive. This resolves the local Playwright package or hosted Chromium executable before the user starts a run when the runtime instance is retained. The warmup is best-effort, uses the same hosted authorization check as capture, never launches a browser, and a failed warmup does not prevent a later retry. During navigation, network-idle and ready-selector waits run concurrently; font and configured settling waits still happen afterward to preserve capture fidelity. Native select actions also skip their network and animation waits when the requested option is already selected, which avoids repeatedly reloading identical share-class data.
 

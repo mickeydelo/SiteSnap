@@ -365,6 +365,10 @@
           document.getElementById('run-status').textContent = event.message || 'Hosted Chromium is running…';
           return;
         }
+        if (event.type === 'heartbeat') {
+          document.getElementById('run-status').textContent = event.message || 'Chromium is still working…';
+          return;
+        }
         if (event.type === 'capture') {
           appendCapture(event.entry);
           updateRunProgress(Number(event.processed) || state.rendered, total);
