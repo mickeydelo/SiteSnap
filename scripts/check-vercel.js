@@ -33,7 +33,7 @@ try {
   assert.equal(health.captureEnabled, true);
   assert.equal(health.captureKeyRequired, false);
   assert.equal(health.captureKey, 'test-capture-key');
-  assert.equal(health.version, '1.1.0');
+  assert.equal(health.version, '1.2.0');
   assert.deepEqual(health.limits, { maxCaptures: 60, maxDeviceScale: 1 });
   assert.equal(
     health.message,
@@ -86,6 +86,11 @@ try {
   assert.equal(scriptResponse.status, 200);
   const script = await scriptResponse.text();
   assert.doesNotMatch(script, /window\.prompt/);
+  assert.match(script, /application\/x-ndjson/);
+
+  const streamScriptResponse = await fetch(`${origin}/scripts/stream.js`);
+  assert.equal(streamScriptResponse.status, 200);
+  assert.match(await streamScriptResponse.text(), /readNdjson/);
 
   console.log('Vercel hosted-capture smoke check passed');
 } finally {

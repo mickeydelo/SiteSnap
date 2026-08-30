@@ -41,7 +41,7 @@ Use **Recommended** or **All states** when completeness matters more than demo t
 
 Open `https://site-snap-three.vercel.app`. There is no capture-key prompt. The UI loads any configured key automatically.
 
-Hosted mode shows an indeterminate progress indicator while the synchronous Vercel function runs. Keep the tab open. On completion, download the Blob ZIP. For a fast demo, use one desktop Performance state; a cold hosted run includes Chromium startup and the live Nuveen page load.
+Hosted mode immediately shows the exact output count, current Chromium phase, and a thumbnail as each screenshot completes. Keep the tab open while the streamed request runs. On completion, download the Blob ZIP. For a fast demo, use one desktop Performance state; a cold hosted run includes Chromium startup and the live Nuveen page load.
 
 ## What can legitimately change
 

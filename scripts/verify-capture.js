@@ -20,7 +20,16 @@ for (const page of config.pages) {
 }
 
 try {
-  const result = await run(siteDir, null, config, null, outputDir);
+  const progressEvents = [];
+  const result = await run(
+    siteDir,
+    null,
+    config,
+    event => { if (event?.type === 'capture') progressEvents.push(event); },
+    outputDir,
+    null,
+    { includePreviews: true },
+  );
   assert.equal(result.status, 'done');
   assert.equal(result.manifest.expectedCaptures, 2);
   assert.equal(result.manifest.completedCaptures, 2);
@@ -33,11 +42,14 @@ try {
   assert.ok(mobile.width >= 320 && mobile.width <= 450 && mobile.height >= 300, JSON.stringify(mobile));
   assert.equal(desktop.sha256.length, 64);
   assert.equal(mobile.sha256.length, 64);
+  assert.equal(progressEvents.length, 2);
+  progressEvents.forEach(event => assert.match(event.thumbnailUrl || '', /^data:image\/jpeg;base64,/));
 
   console.log(JSON.stringify({
     check: 'local-live-capture',
     status: result.status,
     durationMs: result.manifest.durationMs,
+    previews: progressEvents.length,
     outputs: result.captures.map(({ device, width, height, bytes }) => ({ device, width, height, bytes })),
   }));
 } finally {

@@ -132,6 +132,9 @@
     .capture-row img { width: 132px; height: 76px; border-radius: 7px; object-fit: cover; object-position: top; background: #e9efed; }
     .capture-thumb { width: 132px; height: 76px; display: grid; place-items: center; border-radius: 7px; color: #78909a; background: #e9efed; font-size: 22px; }
     .capture-row strong { font-size: 11px; }
+    .capture-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .capture-row.failed { border-color: #efd2d2; background: #fffafa; }
+    .capture-row.failed .capture-thumb { color: var(--danger); background: #fbeaea; font-weight: 900; }
     .run-error { display: none; margin: 14px 18px 0; padding: 10px 12px; border: 1px solid #ecc7c7; border-radius: 9px; color: var(--danger); background: #fff5f5; font-size: 12px; }
     .run-error.warning { border-color: #efd7a8; color: #805410; background: #fff9ed; }
     .run-actions { display: flex; gap: 9px; padding: 14px 18px 18px; border-top: 1px solid var(--line); }

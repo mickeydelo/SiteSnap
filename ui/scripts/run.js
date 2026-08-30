@@ -1,3 +1,5 @@
+    import { readNdjson } from './stream.js';
+
     const ESSENTIAL_IDS = new Set([
       'hero-nhmrx', 'performance-quarterly', 'performance-calendar-year',
       'performance-medalist-ratings', 'performance-morningstar-ratings', 'tey-sample',
@@ -6,7 +8,7 @@
 
     const state = {
       siteId: '', site: null, config: null, defaults: null,
-      activePage: 0, query: '', pollTimer: null, jobId: null, rendered: 0, running: false,
+      activePage: 0, query: '', pollTimer: null, jobId: null, rendered: 0, processed: 0, running: false,
       captureKey: '', activePreset: 'recommended',
       runtime: { mode: 'local', captureEnabled: true, captureKeyRequired: false, limits: null },
     };
@@ -285,30 +287,75 @@
       const total = countCaptures();
       if (!total) return;
       state.running = true;
-      state.jobId = crypto.randomUUID(); state.rendered = 0;
+      state.jobId = crypto.randomUUID(); state.rendered = 0; state.processed = 0;
       showRunModal(total);
       updateSummary();
       try {
         const headers = { 'Content-Type': 'application/json' };
         if (state.captureKey) headers.Authorization = `Bearer ${state.captureKey}`;
-        if (state.runtime.mode === 'vercel-capture') {
-          document.getElementById('run-status').textContent = 'Hosted Chromium is running. Keep this tab open…';
-        }
+        if (state.runtime.mode === 'vercel-capture') headers.Accept = 'application/x-ndjson';
         const response = await fetch('/api/run', {
           method: 'POST', headers,
           body: JSON.stringify({ jobId: state.jobId, siteId: state.siteId, config: state.config })
         });
-        const body = await response.json().catch(() => ({}));
         if (response.status === 401) {
           throw new Error('Hosted authorization is out of date. Refresh the page and try again.');
         }
-        if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+          const body = contentType.includes('application/json')
+            ? await response.json().catch(() => ({}))
+            : {};
+          throw new Error(body.error || `HTTP ${response.status}`);
+        }
+        if (contentType.includes('application/x-ndjson')) {
+          await consumeHostedStream(response, total);
+          return;
+        }
+        const body = await response.json().catch(() => ({}));
         if (['done', 'partial', 'error'].includes(body.status)) {
           renderCaptures(body.entries || []);
           return handleTerminalResult(body, body.total || total);
         }
         poll();
       } catch (error) { showRunError(error.message); }
+    }
+
+    async function consumeHostedStream(response, fallbackTotal) {
+      let terminal = false;
+      await readNdjson(response, event => {
+        const total = Number(event.total) || fallbackTotal;
+        if (event.type === 'start') {
+          document.getElementById('run-status').textContent = 'Starting hosted Chromium…';
+          updateRunProgress(0, total);
+          return;
+        }
+        if (event.type === 'status') {
+          document.getElementById('run-status').textContent = event.message || 'Hosted Chromium is running…';
+          return;
+        }
+        if (event.type === 'capture') {
+          appendCapture(event.entry);
+          updateRunProgress(Number(event.processed) || state.rendered, total);
+          return;
+        }
+        if (event.type === 'failure') {
+          appendFailure(event.failure);
+          updateRunProgress(Number(event.processed) || state.processed + 1, total);
+          return;
+        }
+        if (event.type === 'complete') {
+          terminal = true;
+          const result = event.result || {};
+          handleTerminalResult(result, Number(result.total) || total);
+          return;
+        }
+        if (event.type === 'error') {
+          terminal = true;
+          throw new Error(event.error || 'Hosted capture failed.');
+        }
+      });
+      if (!terminal) throw new Error('The hosted progress stream ended before the archive was ready.');
     }
 
     async function poll() {
@@ -319,9 +366,7 @@
         if (job.lastLog) document.getElementById('run-status').textContent = job.lastLog;
         renderCaptures(job.entries || []);
         const total = job.total || countCaptures();
-        const progress = total ? Math.min(100, Math.round((state.rendered / total) * 100)) : 0;
-        document.getElementById('progress-fill').style.width = `${progress}%`;
-        document.getElementById('progress-label').textContent = `${state.rendered} of ${total}`;
+        updateRunProgress((job.entries?.length || 0) + (job.failures?.length || 0), total);
         if (['done', 'partial', 'error'].includes(job.status)) return handleTerminalResult(job, total);
         state.pollTimer = setTimeout(poll, 900);
       } catch (error) { showRunError(error.message); }
@@ -331,20 +376,47 @@
       const list = document.getElementById('captures');
       if (state.rendered === 0 && entries.length) list.innerHTML = '';
       for (let index = state.rendered; index < entries.length; index += 1) {
-        const entry = entries[index];
-        const thumbnailUrl = entry.thumbnailUrl || (state.runtime.mode === 'local'
-          ? `/api/thumbnail/${encodeURIComponent(state.jobId)}/${entry.index}`
-          : null);
-        const thumbnail = thumbnailUrl
-          ? node('img', { src: thumbnailUrl, alt: '' })
-          : node('div', { class: 'capture-thumb', text: '✓' });
-        list.appendChild(node('div', { class: 'capture-row' },
-          thumbnail,
-          node('strong', { text: entry.label })
-        ));
-        state.rendered += 1;
+        appendCapture(entries[index]);
       }
       if (entries.length) list.scrollTop = list.scrollHeight;
+    }
+
+    function appendCapture(entry) {
+      const list = document.getElementById('captures');
+      list.querySelector('.empty')?.remove();
+      const thumbnailUrl = entry.thumbnailUrl || (state.runtime.mode === 'local'
+        ? `/api/thumbnail/${encodeURIComponent(state.jobId)}/${entry.index}`
+        : null);
+      const thumbnail = thumbnailUrl
+        ? node('img', { src: thumbnailUrl, alt: `${entry.label} preview` })
+        : node('div', { class: 'capture-thumb', text: '✓', 'aria-hidden': 'true' });
+      list.appendChild(node('div', { class: 'capture-row' },
+        thumbnail,
+        node('strong', { text: entry.label })
+      ));
+      state.rendered += 1;
+      list.scrollTop = list.scrollHeight;
+    }
+
+    function appendFailure(failure = {}) {
+      const list = document.getElementById('captures');
+      list.querySelector('.empty')?.remove();
+      list.appendChild(node('div', { class: 'capture-row failed' },
+        node('div', { class: 'capture-thumb', text: '!', 'aria-hidden': 'true' }),
+        node('div', {},
+          node('strong', { text: failure.label || 'Capture state failed' }),
+          node('small', { text: clipText(failure.message || 'Review the diagnostic archive.', 150) })
+        )
+      ));
+      list.scrollTop = list.scrollHeight;
+    }
+
+    function updateRunProgress(processed, total) {
+      state.processed = Math.max(state.processed, Number(processed) || 0);
+      const progress = total ? Math.min(100, Math.round((state.processed / total) * 100)) : 0;
+      document.getElementById('progress').classList.remove('indeterminate');
+      document.getElementById('progress-fill').style.width = `${progress}%`;
+      document.getElementById('progress-label').textContent = `${state.processed} of ${total}`;
     }
 
     function showRunModal(total) {
@@ -353,7 +425,7 @@
       document.getElementById('run-title').textContent = `Capturing ${state.site.name}`;
       document.getElementById('run-status').textContent = 'Starting Chromium…';
       document.getElementById('spinner').classList.remove('hidden');
-      document.getElementById('progress').classList.toggle('indeterminate', state.runtime.mode === 'vercel-capture');
+      document.getElementById('progress').classList.remove('indeterminate');
       document.getElementById('progress-fill').style.width = '0%';
       document.getElementById('progress-label').textContent = `0 of ${total}`;
       document.getElementById('run-mode-label').textContent = enabledDeviceLabel();
@@ -383,7 +455,8 @@
         ? 'Verified ZIP archive is ready.'
         : `Archive created with ${failures.length} failed state${failures.length === 1 ? '' : 's'}.`;
       document.getElementById('progress-fill').style.width = '100%';
-      document.getElementById('progress-label').textContent = `${state.rendered} of ${total}`;
+      state.processed = total;
+      document.getElementById('progress-label').textContent = `${total} of ${total}`;
       if (!isComplete) {
         const notice = document.getElementById('run-error');
         notice.textContent = failures.length

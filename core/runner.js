@@ -28,6 +28,7 @@ export async function run(
   onProgress = null,
   outputBaseDir = null,
   _unusedExecutablePath = null,
+  runtimeOptions = {},
 ) {
   const config = configOverride
     ?? JSON.parse(fs.readFileSync(path.join(siteDir, 'config.json'), 'utf8'));
@@ -58,7 +59,7 @@ export async function run(
     results = await Promise.allSettled(devices.map(device => {
       const outputDir = path.join(runDir, device);
       fs.mkdirSync(outputDir, { recursive: true });
-      return runDevice(browser, config, credentials, outputDir, runDir, device, log);
+      return runDevice(browser, config, credentials, outputDir, runDir, device, log, runtimeOptions);
     }));
   } finally {
     await browser.close().catch(() => {});
@@ -118,7 +119,7 @@ export async function run(
   return { zipPath, runDir, status, captures, failures, manifest };
 }
 
-async function runDevice(browser, config, credentials, outputDir, runDir, device, log) {
+async function runDevice(browser, config, credentials, outputDir, runDir, device, log, runtimeOptions) {
   const deviceConfig = resolveDeviceConfig(config, device);
   await log(`[${device}] Creating isolated context…`);
   const { context, page } = await createContext(
@@ -175,6 +176,7 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
             deviceConfig,
             log,
             pageConfig.elementHideSelectors,
+            runtimeOptions,
           );
           captures.push(capture);
         } catch (error) {
@@ -242,6 +244,7 @@ async function captureStep(
   deviceConfig,
   log,
   pageHideSelectors = [],
+  runtimeOptions = {},
 ) {
   const filename = sequence.next(`${pageId}-${step.id}`);
   const filepath = path.join(outputDir, filename);
@@ -289,11 +292,15 @@ async function captureStep(
     }
   }
 
+  const thumbnailUrl = runtimeOptions.includePreviews
+    ? await createPreviewDataUrl(page, filepath)
+    : null;
   await log({
     type: 'capture',
     label: `${device} · ${step.group || pageId} · ${step.label}`,
     filename,
     filepath,
+    ...(thumbnailUrl ? { thumbnailUrl } : {}),
   });
   const metadata = readPngMetadata(filepath);
   return {
@@ -309,6 +316,41 @@ async function captureStep(
     bytes: metadata.bytes,
     sha256: metadata.sha256,
   };
+}
+
+async function createPreviewDataUrl(page, filepath) {
+  try {
+    const source = await fs.promises.readFile(filepath, { encoding: 'base64' });
+    return await page.evaluate(async ({ encoded, width, height }) => {
+      const binary = atob(encoded);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Canvas preview context is unavailable');
+      context.fillStyle = '#eef4f2';
+      context.fillRect(0, 0, width, height);
+      const scale = Math.min(width / bitmap.width, height / bitmap.height, 1);
+      const drawWidth = Math.max(1, Math.round(bitmap.width * scale));
+      const drawHeight = Math.max(1, Math.round(bitmap.height * scale));
+      context.drawImage(
+        bitmap,
+        Math.round((width - drawWidth) / 2),
+        Math.round((height - drawHeight) / 2),
+        drawWidth,
+        drawHeight,
+      );
+      bitmap.close?.();
+      return canvas.toDataURL('image/jpeg', 0.74);
+    }, { encoded: source, width: 264, height: 152 });
+  } catch {
+    return null;
+  }
 }
 
 function buildHideStyle(selectors) {

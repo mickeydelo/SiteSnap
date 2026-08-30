@@ -10,7 +10,7 @@ import { run as runCaptures } from './core/runner.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const MAX_JOBS = 20;
 const JOB_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_HOSTED_CAPTURES = 60;
@@ -244,7 +244,7 @@ app.use((error, request, response, next) => {
 });
 
 async function runHostedCapture(
-  _request,
+  request,
   response,
   siteDir,
   siteId,
@@ -258,39 +258,116 @@ async function runHostedCapture(
     });
   }
 
-  hostedCaptureActive = true;
-  response.setHeader('Cache-Control', 'no-store');
   const jobId = normalizeJobId(requestedJobId);
   const outputBaseDir = path.join(os.tmpdir(), `sitesnap-${jobId}`);
+  const streamsProgress = request.get('accept')?.includes('application/x-ndjson') === true;
 
+  let hostedConfig;
   try {
     const defaultConfig = readJson(path.join(siteDir, 'config.json'));
-    const hostedConfig = sanitizeHostedConfig(defaultConfig, configOverride);
+    hostedConfig = sanitizeHostedConfig(defaultConfig, configOverride);
     enforceHostedLimits(hostedConfig);
+  } catch (error) {
+    const status = error.code === 'HOSTED_LIMIT' ? 400 : 500;
+    return response.status(status).json({
+      code: error.code || 'HOSTED_CAPTURE_FAILED',
+      error: error.message || 'Hosted capture failed.',
+    });
+  }
 
-    const progress = { total: 0, entries: [], lastLog: null };
+  hostedCaptureActive = true;
+  response.setHeader('Cache-Control', 'no-store, no-transform');
+  const progress = { total: countConfiguredCaptures(hostedConfig), entries: [], failures: [], lastLog: null };
+  if (streamsProgress) {
+    response.status(200);
+    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+    writeProgressEvent(response, {
+      type: 'start',
+      jobId,
+      total: progress.total,
+      completed: 0,
+      failed: 0,
+      processed: 0,
+    });
+  }
+
+  try {
     const onProgress = message => {
       if (message && typeof message === 'object') {
         if (message.type === 'total') progress.total = Number(message.total) || 0;
         if (message.type === 'capture') {
-          progress.entries.push({
+          const entry = {
             label: message.label,
             filename: message.filename,
             index: progress.entries.length,
+            ...(message.thumbnailUrl ? { thumbnailUrl: message.thumbnailUrl } : {}),
+          };
+          progress.entries.push(entry);
+          if (streamsProgress) writeProgressEvent(response, {
+            type: 'capture',
+            entry,
+            total: progress.total,
+            completed: progress.entries.length,
+            failed: progress.failures.length,
+            processed: progress.entries.length + progress.failures.length,
+          });
+        }
+        if (message.type === 'failure') {
+          const failure = {
+            device: message.device,
+            pageId: message.pageId,
+            stepId: message.stepId,
+            label: message.label,
+            message: message.message,
+          };
+          progress.failures.push(failure);
+          if (streamsProgress) writeProgressEvent(response, {
+            type: 'failure',
+            failure,
+            total: progress.total,
+            completed: progress.entries.length,
+            failed: progress.failures.length,
+            processed: progress.entries.length + progress.failures.length,
           });
         }
       } else {
         progress.lastLog = String(message);
+        if (streamsProgress) writeProgressEvent(response, {
+          type: 'status',
+          message: progress.lastLog,
+          total: progress.total,
+          completed: progress.entries.length,
+          failed: progress.failures.length,
+          processed: progress.entries.length + progress.failures.length,
+        });
       }
     };
 
-    const result = await runCaptures(siteDir, null, hostedConfig, onProgress, outputBaseDir);
+    const result = await runCaptures(
+      siteDir,
+      null,
+      hostedConfig,
+      onProgress,
+      outputBaseDir,
+      null,
+      { includePreviews: streamsProgress },
+    );
+    if (streamsProgress) writeProgressEvent(response, {
+      type: 'status',
+      message: 'Uploading verified ZIP archive…',
+      total: progress.total,
+      completed: progress.entries.length,
+      failed: progress.failures.length,
+      processed: progress.entries.length + progress.failures.length,
+    });
     const downloadUrl = await uploadHostedArchive(result.zipPath, siteId, jobId);
 
-    return response.json({
+    const responseBody = {
       jobId,
       status: result.status,
-      entries: progress.entries,
+      entries: progress.entries.map(({ thumbnailUrl: _thumbnailUrl, ...entry }) => entry),
       total: progress.total,
       failures: result.failures,
       failureCount: result.failures.length,
@@ -298,9 +375,28 @@ async function runHostedCapture(
         ? 'Capture complete. ZIP archive uploaded.'
         : `Capture finished with ${result.failures.length} failed state${result.failures.length === 1 ? '' : 's'}.`,
       downloadUrl,
-    });
+    };
+    if (streamsProgress) {
+      writeProgressEvent(response, { type: 'complete', total: progress.total, result: responseBody });
+      response.end();
+      return response;
+    }
+    return response.json(responseBody);
   } catch (error) {
     const status = error.code === 'HOSTED_LIMIT' ? 400 : 500;
+    if (streamsProgress) {
+      writeProgressEvent(response, {
+        type: 'error',
+        code: error.code || 'HOSTED_CAPTURE_FAILED',
+        error: error.message || 'Hosted capture failed.',
+        total: progress.total,
+        completed: progress.entries.length,
+        failed: progress.failures.length,
+        processed: progress.entries.length + progress.failures.length,
+      });
+      response.end();
+      return response;
+    }
     return response.status(status).json({
       code: error.code || 'HOSTED_CAPTURE_FAILED',
       error: error.message || 'Hosted capture failed.',
@@ -309,6 +405,11 @@ async function runHostedCapture(
     hostedCaptureActive = false;
     await rm(outputBaseDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+function writeProgressEvent(response, event) {
+  if (response.destroyed || response.writableEnded) return false;
+  return response.write(`${JSON.stringify(event)}\n`);
 }
 
 async function uploadHostedArchive(zipPath, siteId, jobId) {

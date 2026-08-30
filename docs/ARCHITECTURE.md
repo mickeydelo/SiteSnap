@@ -31,7 +31,7 @@ Desktop and mobile contexts run concurrently inside one Chromium process. They n
 | --- | --- | --- |
 | UI source | Served directly from `ui/` | `ui/` is built to CDN-served `public/` |
 | Browser | `playwright` + installed Chromium | `playwright-core` + `@sparticuz/chromium` |
-| Progress | Polling, live thumbnails | Synchronous request, indeterminate progress |
+| Progress | Polling, live thumbnails | Streaming NDJSON, exact count, inline thumbnails |
 | Output | Retained under the site output directory | Ephemeral `/tmp`, then public Blob ZIP |
 | Scale | 1× or 2× | 1× |
 | Run limit | Configuration/device limits only | 60 outputs and 300 seconds |
@@ -46,6 +46,8 @@ Desktop and mobile contexts run concurrently inside one Chromium process. They n
 - `core/runner.js` validates configuration, launches one browser, runs device contexts in parallel, isolates failed states, records PNG metadata/checksums, and produces the run manifest.
 - `core/capture.js` stabilizes lazy assets and handles full-page screenshots without widening Nuveen output to include off-canvas chrome.
 - `core/zip.js` packages already-compressed PNGs at low compression for fast completion.
+
+Hosted clients request `application/x-ndjson`. The function flushes a start event before launching Chromium, then streams status, failure, and capture events. Each completed hosted capture includes a compact 264×152 JPEG preview generated inside Chromium; the original PNG remains only in the ZIP. A final event supplies the Blob download URL. JSON remains supported for non-streaming API clients.
 
 Step failures do not disappear. A failed state produces a debug viewport where possible, is listed in the manifest/API, and changes the run to `partial`. A run is `done` only when every requested output succeeds.
 

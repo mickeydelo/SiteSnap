@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readNdjson } from '../ui/scripts/stream.js';
 
 const origin = (process.env.SITESNAP_BASE_URL || 'https://site-snap-three.vercel.app').replace(/\/$/, '');
 const healthResponse = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(30000) });
@@ -17,7 +18,7 @@ for (const page of config.pages) {
   page.enabled = page.steps.some(step => step.enabled);
 }
 
-const headers = { 'Content-Type': 'application/json' };
+const headers = { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' };
 if (health.captureKey) headers.Authorization = `Bearer ${health.captureKey}`;
 const startedAt = Date.now();
 const runResponse = await fetch(`${origin}/api/run`, {
@@ -26,8 +27,21 @@ const runResponse = await fetch(`${origin}/api/run`, {
   body: JSON.stringify({ siteId: 'nuveen', config }),
   signal: AbortSignal.timeout(290000),
 });
-const result = await runResponse.json();
-assert.equal(runResponse.status, 200, JSON.stringify(result));
+assert.equal(runResponse.status, 200);
+assert.match(runResponse.headers.get('content-type') || '', /application\/x-ndjson/);
+const responseMs = Date.now() - startedAt;
+const events = [];
+await readNdjson(runResponse, event => events.push({ ...event, receivedAtMs: Date.now() - startedAt }));
+const startEvent = events.find(event => event.type === 'start');
+const captureEvent = events.find(event => event.type === 'capture');
+const completeEvent = events.find(event => event.type === 'complete');
+assert.ok(startEvent, JSON.stringify(events));
+assert.ok(captureEvent, JSON.stringify(events));
+assert.ok(completeEvent, JSON.stringify(events));
+assert.equal(startEvent.total, 1);
+assert.equal(captureEvent.processed, 1);
+assert.match(captureEvent.entry.thumbnailUrl || '', /^data:image\/jpeg;base64,/);
+const result = completeEvent.result;
 assert.equal(result.status, 'done', JSON.stringify(result));
 assert.equal(result.entries.length, 1);
 assert.equal(result.failureCount, 0);
@@ -44,6 +58,8 @@ console.log(JSON.stringify({
   check: 'vercel-live-capture',
   status: result.status,
   durationMs: Date.now() - startedAt,
+  responseMs,
+  firstCaptureMs: captureEvent.receivedAtMs,
   outputs: result.entries.length,
   archiveBytes: Number(archiveResponse.headers.get('content-length')) || null,
   blobHost: new URL(result.downloadUrl).host,

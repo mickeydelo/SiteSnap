@@ -50,7 +50,7 @@ Required project setup:
 
 `SITESNAP_CAPTURE_KEY` is optional. When present, the server still validates it, but the hosted UI obtains and sends it automatically so the presenter never sees a prompt. When absent, hosted capture is open. This is an intentional demo convenience, not an access-control boundary.
 
-Hosted runs are synchronous, support up to 60 outputs at 1×, and upload the completed archive to a unique public Blob URL. Local mode remains independent of Vercel and Blob configuration.
+Hosted runs support up to 60 outputs at 1× and upload the completed archive to a unique public Blob URL. The capture response streams status, completed/total counts, and compact preview thumbnails to the open tab while Chromium is running. Local mode remains independent of Vercel and Blob configuration.
 
 ## Source layout
 

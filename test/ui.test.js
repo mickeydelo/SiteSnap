@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readNdjson } from '../ui/scripts/stream.js';
 
 const ROOT_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -12,7 +13,7 @@ test('UI source uses external styles and scripts', () => {
     assert.doesNotMatch(html, /<style[\s>]/i);
     assert.doesNotMatch(html, /<script>(.|\n)*<\/script>/i);
     assert.match(html, /rel="stylesheet"/);
-    assert.match(html, /<script src=/);
+    assert.match(html, /<script[^>]+src=/);
   }
   assert.ok(fs.statSync(path.join(ROOT_DIR, 'ui', 'styles', 'run.css')).size > 1000);
   assert.ok(fs.statSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js')).size > 1000);
@@ -22,6 +23,28 @@ test('hosted capture UI never asks the presenter for a key', () => {
   const script = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js'), 'utf8');
   assert.doesNotMatch(script, /window\.prompt|Enter the SiteSnap server capture key/i);
   assert.match(script, /health\.captureKey/);
+  assert.match(script, /application\/x-ndjson/);
+  assert.match(script, /consumeHostedStream/);
+});
+
+test('hosted progress events are parsed before the response closes', async () => {
+  const encoder = new TextEncoder();
+  const chunks = [
+    '{"type":"start","total":2}\n{"type":"capt',
+    'ure","processed":1,"entry":{"label":"Desktop"}}\n',
+    '{"type":"complete","result":{"status":"done"}}\n',
+  ];
+  const response = new Response(new ReadableStream({
+    start(controller) {
+      chunks.forEach(chunk => controller.enqueue(encoder.encode(chunk)));
+      controller.close();
+    },
+  }), { headers: { 'Content-Type': 'application/x-ndjson' } });
+  const events = [];
+  const count = await readNdjson(response, event => events.push(event));
+  assert.equal(count, 3);
+  assert.deepEqual(events.map(event => event.type), ['start', 'capture', 'complete']);
+  assert.equal(events[1].entry.label, 'Desktop');
 });
 
 test('generated public assets exactly mirror maintained UI source', () => {
@@ -32,6 +55,7 @@ test('generated public assets exactly mirror maintained UI source', () => {
     'styles/run.css',
     'scripts/home.js',
     'scripts/run.js',
+    'scripts/stream.js',
   ]) {
     const source = fs.readFileSync(path.join(ROOT_DIR, 'ui', relativePath));
     const generated = fs.readFileSync(path.join(ROOT_DIR, 'public', relativePath));

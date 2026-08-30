@@ -21,6 +21,7 @@ try {
     ['/styles/run.css', 'text/css'],
     ['/scripts/home.js', 'application/javascript'],
     ['/scripts/run.js', 'application/javascript'],
+    ['/scripts/stream.js', 'application/javascript'],
     ['/api/health', 'application/json'],
     ['/api/sites', 'application/json'],
     ['/api/config/nuveen', 'application/json'],
