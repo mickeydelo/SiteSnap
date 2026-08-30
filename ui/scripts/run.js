@@ -35,15 +35,12 @@
         state.captureKey = health.captureKey || '';
         document.getElementById('project-name').textContent = state.site.name;
         const hosted = state.runtime.mode !== 'local';
-        document.getElementById('project-note').textContent = hosted
-          ? (state.runtime.captureEnabled ? 'Hosted Chromium capture' : 'Hosted capture setup required')
-          : (state.site.description || 'Local capture configuration');
-        document.getElementById('runtime-title').textContent = state.runtime.captureEnabled
-          ? 'Hosted Chromium is ready'
-          : 'Hosted capture setup required';
-        document.getElementById('runtime-message').textContent = state.runtime.message || '';
-        document.getElementById('runtime-banner').classList.toggle('hidden', !hosted);
-        document.getElementById('runtime-banner').classList.toggle('setup', hosted && !state.runtime.captureEnabled);
+        document.getElementById('project-note').textContent = state.site.description || 'Capture configuration';
+        if (hosted) {
+          const runtimeMessage = `[SiteSnap] ${state.runtime.message || `Runtime mode: ${state.runtime.mode}`}`;
+          if (state.runtime.captureEnabled) console.info(runtimeMessage);
+          else console.warn(runtimeMessage);
+        }
         bindStaticEvents();
         renderAll();
       } catch (error) {
@@ -252,9 +249,9 @@
       const enabledDevices = ['desktop', 'mobile'].filter(name => state.config.devices[name].enabled !== false);
       document.getElementById('capture-summary').textContent = `${total} output${total === 1 ? '' : 's'} · ${enabledDevices.join(' + ')}`;
       if (state.runtime.captureEnabled === false) {
-        button.textContent = `Setup required · ${total}`;
+        button.textContent = 'Capture unavailable';
         button.disabled = true;
-        button.title = state.runtime.message || 'Hosted capture setup is incomplete.';
+        button.removeAttribute('title');
         return;
       }
       const maxCaptures = Number(state.runtime.limits?.maxCaptures) || Infinity;

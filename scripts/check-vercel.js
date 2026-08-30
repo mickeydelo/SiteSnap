@@ -33,7 +33,7 @@ try {
   assert.equal(health.captureEnabled, true);
   assert.equal(health.captureKeyRequired, false);
   assert.equal(health.captureKey, 'test-capture-key');
-  assert.equal(health.version, '1.2.0');
+  assert.equal(health.version, '1.2.1');
   assert.deepEqual(health.limits, { maxCaptures: 60, maxDeviceScale: 1 });
   assert.equal(
     health.message,

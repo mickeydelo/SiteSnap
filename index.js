@@ -10,7 +10,7 @@ import { run as runCaptures } from './core/runner.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const MAX_JOBS = 20;
 const JOB_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_HOSTED_CAPTURES = 60;

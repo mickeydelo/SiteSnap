@@ -20,8 +20,12 @@ test('UI source uses external styles and scripts', () => {
 });
 
 test('hosted capture UI never asks the presenter for a key', () => {
+  const html = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'run.html'), 'utf8');
   const script = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js'), 'utf8');
   assert.doesNotMatch(script, /window\.prompt|Enter the SiteSnap server capture key/i);
+  assert.doesNotMatch(html, /runtime-banner|Hosted capture ready/i);
+  assert.doesNotMatch(script, /getElementById\(['"]runtime-(?:banner|title|message)/);
+  assert.match(script, /console\.(?:info|warn)/);
   assert.match(script, /health\.captureKey/);
   assert.match(script, /application\/x-ndjson/);
   assert.match(script, /consumeHostedStream/);

@@ -31,14 +31,6 @@
     .capture-button { border: 0; border-radius: 11px; padding: 10px 17px; background: var(--lime); color: var(--navy); font-weight: 800; cursor: pointer; box-shadow: 0 8px 22px rgba(79,177,44,.18); }
     .capture-button:hover { background: #86e25f; }
     .capture-button:disabled { opacity: .45; cursor: not-allowed; }
-    .runtime-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 10px 24px; border-bottom: 1px solid #d8e6d3; color: #31533b; background: #edf8e9; }
-    .runtime-banner.hidden { display: none; }
-    .runtime-banner.setup { border-bottom-color: #ead3a4; color: #765018; background: #fff8e9; }
-    .runtime-banner.setup .runtime-copy span { color: #8b6a38; }
-    .runtime-copy { min-width: 0; }
-    .runtime-copy strong, .runtime-copy span { display: block; }
-    .runtime-copy strong { font-size: 11px; }
-    .runtime-copy span { margin-top: 1px; color: #55725c; font-size: 10px; font-weight: 600; }
     .app { display: grid; grid-template-columns: var(--sidebar) minmax(0,1fr); min-height: calc(100vh - 68px); }
     .sidebar { position: sticky; top: 68px; height: calc(100vh - 68px); overflow: auto; border-right: 1px solid var(--line); background: #eef4f2; padding: 18px 14px; }
     .preview { width: 100%; height: 118px; object-fit: cover; object-position: top; display: block; border-radius: 12px; border: 1px solid #cfdbde; background: #dfe9e6; }
@@ -152,7 +144,6 @@
       .topbar { padding: 10px 15px; gap: 10px; }
       .project-title span, .capture-summary, .top-divider { display: none; }
       .device { flex-wrap: wrap; }
-      .runtime-banner { align-items: stretch; flex-direction: column; padding: 12px 16px; }
     }
     @media (max-width: 520px) {
       .brand strong { display: none; }
