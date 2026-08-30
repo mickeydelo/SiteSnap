@@ -12,15 +12,18 @@ const configResponse = await fetch(`${origin}/api/config/nuveen`, { signal: Abor
 const config = await configResponse.json();
 assert.equal(configResponse.status, 200);
 config.devices.desktop.enabled = true;
-config.devices.mobile.enabled = true;
-const VERIFY_STEP_IDS = new Set(['cookie-notice', 'clean-viewport', 'full-page']);
+const profile = process.env.SITESNAP_VERIFY_PROFILE || 'homepage';
+config.devices.mobile.enabled = profile !== 'full-page';
+const VERIFY_STEP_IDS = profile === 'full-page'
+  ? new Set(['full-page'])
+  : new Set(['cookie-notice', 'clean-viewport', 'full-page']);
 for (const page of config.pages) {
   for (const step of page.steps ?? []) {
     step.enabled = page.id === 'home' && VERIFY_STEP_IDS.has(step.id);
   }
   page.enabled = page.steps.some(step => step.enabled);
 }
-const expectedOutputs = 5;
+const expectedOutputs = profile === 'full-page' ? 1 : 5;
 
 const headers = { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' };
 if (health.captureKey) headers.Authorization = `Bearer ${health.captureKey}`;
@@ -35,7 +38,17 @@ assert.equal(runResponse.status, 200);
 assert.match(runResponse.headers.get('content-type') || '', /application\/x-ndjson/);
 const responseMs = Date.now() - startedAt;
 const events = [];
-await readNdjson(runResponse, event => events.push({ ...event, receivedAtMs: Date.now() - startedAt }));
+await readNdjson(runResponse, event => {
+  const receivedAtMs = Date.now() - startedAt;
+  events.push({ ...event, receivedAtMs });
+  if (event.type === 'capture') {
+    console.log(`[${receivedAtMs}ms] capture ${event.processed}/${event.total}: ${event.entry?.label}`);
+  } else if (event.type === 'failure') {
+    console.log(`[${receivedAtMs}ms] failure ${event.processed}/${event.total}: ${event.failure?.message}`);
+  } else if (event.type === 'status' || event.type === 'heartbeat') {
+    console.log(`[${receivedAtMs}ms] ${event.message}`);
+  }
+});
 const startEvent = events.find(event => event.type === 'start');
 const captureEvents = events.filter(event => event.type === 'capture');
 const captureEvent = captureEvents[0];

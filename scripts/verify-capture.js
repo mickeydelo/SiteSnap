@@ -39,6 +39,7 @@ try {
     null,
     {
       includePreviews: true,
+      nativeFullPage: true,
       parallelDevices: false,
     },
   );
@@ -59,7 +60,8 @@ try {
   const fullPage = result.captures.find(capture => (
     capture.device === 'desktop' && capture.stepId === 'full-page'
   ));
-  assert.ok(fullPage.width >= 1000 && fullPage.height > 900, JSON.stringify(fullPage));
+  assert.equal(fullPage.width, 1440, JSON.stringify(fullPage));
+  assert.ok(fullPage.height > 900, JSON.stringify(fullPage));
   assert.equal(desktop.sha256.length, 64);
   assert.equal(mobile.sha256.length, 64);
   for (const device of ['desktop', 'mobile']) {

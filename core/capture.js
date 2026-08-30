@@ -1,19 +1,55 @@
+import fs from 'fs';
+
 /** Capture a stable screenshot without truncating long local full-page runs. */
-export async function captureScreenshot(page, filepath, { fullPage = true, afterScroll = null } = {}) {
+export async function captureScreenshot(
+  page,
+  filepath,
+  { fullPage = true, afterScroll = null, nativeFullPage = false } = {},
+) {
   if (fullPage) {
     await scrollForLazyLoad(page);
     await afterScroll?.();
     await settleVisualAssets(page);
     await page.evaluate(() => window.scrollTo(0, 0));
 
-    // Expanding only the height keeps output at the requested viewport width.
-    // Native fullPage capture includes Nuveen's off-canvas utility drawer and
-    // silently widens a 1440px capture to 1722px.
     const viewport = page.viewportSize();
     const fullHeight = await page.evaluate(() => Math.max(
       document.documentElement.scrollHeight,
       document.body.scrollHeight,
     ));
+
+    if (nativeFullPage) {
+      let session;
+      try {
+        session = await page.context().newCDPSession(page);
+        const { data } = await withTimeout(
+          session.send('Page.captureScreenshot', {
+            format: 'png',
+            fromSurface: true,
+            captureBeyondViewport: true,
+            clip: {
+              x: 0,
+              y: 0,
+              width: viewport.width,
+              height: fullHeight,
+              scale: 1,
+            },
+          }),
+          30000,
+          'Full-page screenshot timed out',
+        );
+        await fs.promises.writeFile(filepath, Buffer.from(data, 'base64'));
+      } finally {
+        if (session) {
+          await withTimeout(session.detach(), 750, 'Screenshot session cleanup timed out').catch(() => {});
+        }
+      }
+      return;
+    }
+
+    // Expanding only the height keeps output at the requested viewport width.
+    // Native fullPage capture includes Nuveen's off-canvas utility drawer and
+    // silently widens a 1440px capture to 1722px.
     try {
       await page.setViewportSize({ width: viewport.width, height: fullHeight });
       await page.screenshot({
@@ -69,4 +105,19 @@ async function settleVisualAssets(page) {
       }));
     await Promise.all(pending);
   }).catch(() => {});
+}
+
+async function withTimeout(promise, timeoutMs, message) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

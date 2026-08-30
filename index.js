@@ -395,6 +395,7 @@ async function runHostedCapture(
       null,
       {
         includePreviews: streamsProgress,
+        nativeFullPage: true,
         parallelDevices: false,
       },
     );

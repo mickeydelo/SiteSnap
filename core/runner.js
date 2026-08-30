@@ -81,7 +81,7 @@ export async function run(
       }
     }
   } finally {
-    await browser.close().catch(() => {});
+    await withTimeout(browser.close(), 5000, 'Browser cleanup timed out').catch(() => {});
   }
 
   const captures = [];
@@ -260,7 +260,7 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
       await log({ type: 'failure', ...failure });
     }
   } finally {
-    await context.close().catch(() => {});
+    await withTimeout(context.close(), 3000, 'Browser context cleanup timed out').catch(() => {});
   }
   return { captures, failures };
 }
@@ -314,7 +314,10 @@ async function captureStep(
   const mode = step.captureMode || 'viewport';
 
   if (mode === 'fullPage') {
-    await captureScreenshot(page, filepath, { fullPage: true });
+    await captureScreenshot(page, filepath, {
+      fullPage: true,
+      nativeFullPage: runtimeOptions.nativeFullPage === true,
+    });
   } else if (mode === 'element') {
     const selector = step.selector || step.focusSelector;
     if (!selector) throw new Error('Element capture requires a selector');
