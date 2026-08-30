@@ -68,22 +68,36 @@ export async function run(
 
   const captures = [];
   const failures = [];
-  results.forEach((result, index) => {
+  for (let index = 0; index < results.length; index += 1) {
+    const result = results[index];
     const device = devices[index];
     if (result.status === 'fulfilled') {
       captures.push(...result.value.captures);
       failures.push(...result.value.failures);
-      return;
+      continue;
     }
-    failures.push({
-      device,
-      pageId: null,
-      stepId: null,
-      label: `${device} capture pass`,
-      message: result.reason?.message ?? String(result.reason),
-      debugFilename: null,
-    });
-  });
+    const message = result.reason?.message ?? String(result.reason);
+    const pendingStates = configuredCaptureStates(config, device);
+    const deviceFailures = pendingStates.length
+      ? pendingStates.map(({ pageConfig, step }) => ({
+        device,
+        pageId: pageConfig.id,
+        stepId: step.id,
+        label: step.label,
+        message: `Browser setup failed before this state: ${message}`,
+        debugFilename: null,
+      }))
+      : [{
+        device,
+        pageId: null,
+        stepId: null,
+        label: `${device} capture pass`,
+        message,
+        debugFilename: null,
+      }];
+    failures.push(...deviceFailures);
+    for (const failure of deviceFailures) await log({ type: 'failure', ...failure });
+  }
 
   const completedAt = new Date();
   const status = failures.length === 0 ? 'done' : (captures.length ? 'partial' : 'error');
@@ -137,6 +151,10 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
   const sequence = new Sequence();
   const captures = [];
   const failures = [];
+  const pending = new Map(configuredCaptureStates(config, device).map(({ pageConfig, step }) => [
+    captureStateKey(pageConfig.id, step.id),
+    { pageConfig, step },
+  ]));
 
   try {
     if (config.browser?.cookies?.length) {
@@ -180,6 +198,7 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
             runtimeOptions,
           );
           captures.push(capture);
+          pending.delete(captureStateKey(pageConfig.id, step.id));
         } catch (error) {
           dirty = true;
           const debugPath = path.join(outputDir, `debug_${sanitizeName(pageConfig.id)}_${sanitizeName(step.id)}.png`);
@@ -193,6 +212,7 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
             debugFilename: fs.existsSync(debugPath) ? toArchivePath(runDir, debugPath) : null,
           };
           failures.push(failure);
+          pending.delete(captureStateKey(pageConfig.id, step.id));
           await log({ type: 'failure', ...failure });
           await log(`  [skip] ${device}: ${pageConfig.id}-${step.id} — ${error.message}`);
           if (failure.debugFilename) await log(`  [debug] ${failure.debugFilename}`);
@@ -206,6 +226,20 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
           }
         }
       }
+    }
+  } catch (error) {
+    const message = error?.message ?? String(error);
+    for (const { pageConfig, step } of pending.values()) {
+      const failure = {
+        device,
+        pageId: pageConfig.id,
+        stepId: step.id,
+        label: step.label,
+        message: `Capture pass stopped before this state: ${message}`,
+        debugFilename: null,
+      };
+      failures.push(failure);
+      await log({ type: 'failure', ...failure });
     }
   } finally {
     await context.close().catch(() => {});
@@ -301,9 +335,8 @@ async function captureStep(
     }
   }
 
-  const thumbnailUrl = runtimeOptions.includePreviews
-    ? await createPreviewDataUrl(page, filepath)
-    : null;
+  const metadata = readPngMetadata(filepath);
+  const thumbnailUrl = runtimeOptions.includePreviews ? await createPreviewDataUrl(page) : null;
   await log({
     type: 'capture',
     label: `${device} · ${step.group || pageId} · ${step.label}`,
@@ -311,7 +344,6 @@ async function captureStep(
     filepath,
     ...(thumbnailUrl ? { thumbnailUrl } : {}),
   });
-  const metadata = readPngMetadata(filepath);
   return {
     device,
     pageId,
@@ -327,38 +359,32 @@ async function captureStep(
   };
 }
 
-async function createPreviewDataUrl(page, filepath) {
+async function createPreviewDataUrl(page) {
+  let session;
   try {
-    const source = await fs.promises.readFile(filepath, { encoding: 'base64' });
-    return await page.evaluate(async ({ encoded, width, height }) => {
-      const binary = atob(encoded);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) {
-        bytes[index] = binary.charCodeAt(index);
-      }
-      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d', { alpha: false });
-      if (!context) throw new Error('Canvas preview context is unavailable');
-      context.fillStyle = '#eef4f2';
-      context.fillRect(0, 0, width, height);
-      const scale = Math.min(width / bitmap.width, height / bitmap.height, 1);
-      const drawWidth = Math.max(1, Math.round(bitmap.width * scale));
-      const drawHeight = Math.max(1, Math.round(bitmap.height * scale));
-      context.drawImage(
-        bitmap,
-        Math.round((width - drawWidth) / 2),
-        Math.round((height - drawHeight) / 2),
-        drawWidth,
-        drawHeight,
-      );
-      bitmap.close?.();
-      return canvas.toDataURL('image/jpeg', 0.74);
-    }, { encoded: source, width: 264, height: 152 });
+    const viewport = page.viewportSize();
+    if (!viewport) return null;
+    const offset = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+    const scale = Math.min(264 / viewport.width, 152 / viewport.height, 1);
+    session = await page.context().newCDPSession(page);
+    const { data } = await session.send('Page.captureScreenshot', {
+      format: 'jpeg',
+      quality: 70,
+      fromSurface: true,
+      captureBeyondViewport: false,
+      clip: {
+        x: offset.x,
+        y: offset.y,
+        width: viewport.width,
+        height: viewport.height,
+        scale,
+      },
+    });
+    return data ? `data:image/jpeg;base64,${data}` : null;
   } catch {
     return null;
+  } finally {
+    if (session) await session.detach().catch(() => {});
   }
 }
 
@@ -396,6 +422,17 @@ function enabledSteps(pageConfig, device) {
     if (device === 'mobile' && step.includeMobile === false) return false;
     return true;
   });
+}
+
+function configuredCaptureStates(config, device) {
+  return config.pages.flatMap(pageConfig => {
+    if (pageConfig.enabled === false) return [];
+    return enabledSteps(pageConfig, device).map(step => ({ pageConfig, step }));
+  });
+}
+
+function captureStateKey(pageId, stepId) {
+  return `${pageId}\u0000${stepId}`;
 }
 
 export function countTotalCaptures(config) {

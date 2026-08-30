@@ -464,9 +464,13 @@
       document.getElementById('run-status').textContent = isComplete
         ? 'Verified ZIP archive is ready.'
         : `Archive created with ${failures.length} failed state${failures.length === 1 ? '' : 's'}.`;
-      document.getElementById('progress-fill').style.width = '100%';
-      state.processed = total;
-      document.getElementById('progress-label').textContent = `${total} of ${total}`;
+      const terminalProcessed = isComplete
+        ? total
+        : Math.min(total, Math.max(state.processed, state.rendered + state.renderedFailures));
+      const terminalProgress = total ? Math.round((terminalProcessed / total) * 100) : 0;
+      document.getElementById('progress-fill').style.width = `${terminalProgress}%`;
+      state.processed = terminalProcessed;
+      document.getElementById('progress-label').textContent = `${terminalProcessed} of ${total}`;
       if (!isComplete) {
         const notice = document.getElementById('run-error');
         notice.textContent = failures.length

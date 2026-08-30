@@ -73,7 +73,7 @@ async function acceptCookies(page, action = {}) {
   const selector = candidates.join(', ');
   const consentAlreadyStored = await page.evaluate(() => document.cookie
     .split(';')
-    .some(cookie => /^(?:OptanonConsent|OptanonAlertBoxClosed)=/i.test(cookie.trim())))
+    .some(cookie => /^OptanonAlertBoxClosed=/i.test(cookie.trim())))
     .catch(() => false);
   if (consentAlreadyStored) return false;
 

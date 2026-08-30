@@ -47,11 +47,11 @@ Desktop and mobile contexts run concurrently inside one Chromium process. They n
 - `core/capture.js` stabilizes lazy assets and handles full-page screenshots without widening Nuveen output to include off-canvas chrome.
 - `core/zip.js` packages already-compressed PNGs at low compression for fast completion.
 
-Hosted clients request `application/x-ndjson`. The function flushes a start event before launching Chromium, then streams status, failure, and capture events. Each completed hosted capture includes a compact 264×152 JPEG preview generated inside Chromium; the original PNG remains only in the ZIP. A final event supplies the Blob download URL. JSON remains supported for non-streaming API clients.
+Hosted clients request `application/x-ndjson`. The function flushes a start event before launching Chromium, then streams status, failure, and capture events. Each completed hosted capture includes a JPEG preview fitted within 264×152 pixels through the Chromium DevTools screenshot path; this avoids decoding the full PNG inside the target page. The original PNG remains only in the ZIP. A final event supplies the Blob download URL. JSON remains supported for non-streaming API clients.
 
 The configuration UI calls `POST /api/warmup` once after it becomes interactive. This resolves the local Playwright package or hosted Chromium executable before the user starts a run when the runtime instance is retained. The warmup is best-effort, uses the same hosted authorization check as capture, never launches a browser, and a failed warmup does not prevent a later retry. During navigation, network-idle and ready-selector waits run concurrently; font and configured settling waits still happen afterward to preserve capture fidelity. Native select actions also skip their network and animation waits when the requested option is already selected, which avoids repeatedly reloading identical share-class data.
 
-Step failures do not disappear. A failed state produces a debug viewport where possible, is listed in the manifest/API, and changes the run to `partial`. A run is `done` only when every requested output succeeds.
+Step failures do not disappear. A failed state produces a debug viewport where possible, is listed in the manifest/API, and changes the run to `partial`. If a page or context closes unexpectedly, completed states remain in the manifest and every still-pending state receives its own failure record. A run is `done` only when every requested output succeeds.
 
 ## Hosted trust boundary
 
