@@ -1,0 +1,7 @@
+:root {
+  /* Native CSS variables cannot be used in media conditions; these values
+     document the shared breakpoints repeated in component-local queries. */
+  --breakpoint-small: 520px;
+  --breakpoint-medium: 820px;
+  --breakpoint-wide: 1040px;
+}

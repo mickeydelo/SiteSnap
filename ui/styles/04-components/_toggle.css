@@ -1,0 +1,46 @@
+.toggle {
+  position: relative;
+  width: 34px;
+  height: 19px;
+  flex-shrink: 0;
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+}
+
+.toggle span {
+  position: absolute;
+  inset: 0;
+  background: var(--color-toggle-track);
+  border-radius: var(--radius-round);
+  cursor: pointer;
+  transition: background var(--duration-standard) var(--ease-out);
+}
+
+.toggle span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 13px;
+  height: 13px;
+  background: var(--color-surface);
+  border-radius: 50%;
+  box-shadow: var(--shadow-toggle);
+  transition: transform var(--duration-standard) var(--ease-out);
+  content: "";
+}
+
+.toggle input:checked + span {
+  background: var(--color-accent-700);
+}
+
+.toggle input:checked + span::after {
+  transform: translateX(15px);
+}
+
+.toggle input:focus-visible + span {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}

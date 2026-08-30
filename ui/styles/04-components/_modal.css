@@ -1,0 +1,167 @@
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--color-overlay);
+  backdrop-filter: blur(7px);
+  animation: modal-in var(--duration-standard) var(--ease-standard) both;
+}
+
+.run-panel {
+  display: flex;
+  width: min(var(--width-modal), 100%);
+  max-height: min(var(--height-modal), calc(100vh - 48px));
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-on-dark);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-modal);
+  animation: panel-in 320ms var(--ease-out) both;
+}
+
+.run-panel:focus {
+  outline: none;
+}
+
+.run-head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: var(--space-5) 22px;
+  color: var(--color-text-on-dark);
+  background:
+    radial-gradient(
+      circle at 88% 0,
+      var(--color-accent-glow-medium),
+      transparent 15rem
+    ),
+    linear-gradient(
+      120deg,
+      var(--color-brand-850),
+      var(--color-brand-800)
+    );
+}
+
+.spinner {
+  width: 27px;
+  height: 27px;
+  border: 3px solid var(--color-spinner-track);
+  border-top-color: var(--color-accent-500);
+  border-radius: 50%;
+  animation: spin 750ms linear infinite;
+}
+
+.run-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.run-copy strong,
+.run-copy span {
+  display: block;
+}
+
+.run-copy span {
+  overflow: hidden;
+  color: var(--color-text-muted-on-dark);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  height: 5px;
+  background: var(--color-surface-progress);
+}
+
+.progress > div {
+  width: 0;
+  height: 100%;
+  background: var(--color-accent-500);
+  box-shadow: var(--shadow-progress);
+  transition: width 250ms var(--ease-standard);
+}
+
+.progress.indeterminate {
+  overflow: hidden;
+}
+
+.progress.indeterminate > div {
+  width: 34%;
+  animation: progress-slide 1.35s ease-in-out infinite;
+}
+
+.run-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px var(--space-5);
+  color: var(--color-text-muted);
+  background: var(--color-surface-footer);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-xs);
+}
+
+.run-error {
+  display: none;
+  margin: 14px 18px 0;
+  padding: 10px var(--space-3);
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger-border);
+  border-radius: 9px;
+  font-size: var(--font-size-md);
+}
+
+.run-error.warning {
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+  border-color: var(--color-warning-border);
+}
+
+.run-actions {
+  display: flex;
+  gap: 9px;
+  padding: 14px 18px 18px;
+  background: var(--color-surface-footer);
+  border-top: 1px solid var(--color-border);
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.988);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes progress-slide {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@media (max-width: 520px) {
+  .run-panel {
+    max-height: calc(100vh - var(--space-6));
+  }
+}

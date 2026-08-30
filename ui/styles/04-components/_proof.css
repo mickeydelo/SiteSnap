@@ -1,0 +1,37 @@
+.proof {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: 34px;
+  color: var(--color-text-bright-on-dark);
+}
+
+.proof__item {
+  padding-left: 14px;
+  border-left: 1px solid var(--color-border-on-dark);
+}
+
+.proof strong {
+  display: block;
+  color: var(--color-accent-500);
+  font-size: var(--font-size-title);
+}
+
+.proof small {
+  color: var(--color-text-subtle-on-dark);
+}
+
+@media (max-width: 820px) {
+  .proof {
+    margin-bottom: var(--space-3);
+  }
+}
+
+@media (max-width: 520px) {
+  .proof {
+    gap: var(--space-3);
+  }
+
+  .proof__item {
+    padding-left: 10px;
+  }
+}

@@ -122,7 +122,7 @@
         card.append(enabled, node('span', { class: 'device-name', text: deviceLabel }));
         const width = miniNumber(device.viewport.width, value => { device.viewport.width = value; markCustom(); updateSummary(); }, `${deviceLabel} viewport width`);
         const height = miniNumber(device.viewport.height, value => { device.viewport.height = value; markCustom(); updateSummary(); }, `${deviceLabel} viewport height`);
-        const scale = node('select', { class: 'mini-select', 'aria-label': `${deviceLabel} output scale` });
+        const scale = node('select', { class: 'field field--scale', 'aria-label': `${deviceLabel} output scale` });
         [['1','1×'],['2','2×']].forEach(([value,label]) => {
           if (Number(value) > maxScale) return;
           const option = node('option', { value, text: label });
@@ -145,7 +145,7 @@
       state.config.pages.forEach((page, index) => {
         const row = node('div', { class: `page-row${index === state.activePage ? ' active' : ''}${page.enabled === false ? ' disabled' : ''}` });
         const button = node('button', {
-          class: 'page-button',
+          class: 'button button--page',
           type: 'button',
           'aria-current': index === state.activePage ? 'page' : null,
         }, node('strong', { text: page.label }), node('small', { text: `${enabledOnPage(page)} selected` }));
@@ -180,7 +180,7 @@
       for (const [groupName, entries] of groups) {
         const section = node('section', { class: 'group' });
         const allOn = entries.every(({ step }) => step.enabled === true);
-        const groupToggle = node('button', { class: 'group-toggle', type: 'button', text: allOn ? 'Disable group' : 'Enable group' });
+        const groupToggle = node('button', { class: 'button button--group', type: 'button', text: allOn ? 'Disable group' : 'Enable group' });
         groupToggle.addEventListener('click', () => { entries.forEach(({ step }) => { step.enabled = !allOn; }); markCustom(); renderAll(); });
         section.appendChild(node('div', { class: 'group-head' }, node('h2', { text: groupName }), node('span', { class: 'group-line' }), groupToggle));
         const grid = node('div', { class: 'card-grid' });
@@ -192,7 +192,7 @@
     function renderStepCard(step) {
       const card = node('article', { class: `step-card${step.enabled === true ? '' : ' off'}` });
       const toggle = toggleControl(step.enabled === true, checked => { step.enabled = checked; markCustom(); renderAll(); }, `Include ${step.label}`);
-      const mode = node('select', { class: 'mode', 'aria-label': 'Capture mode' });
+      const mode = node('select', { class: 'field field--mode', 'aria-label': 'Capture mode' });
       const modes = [['viewport','Viewport'],['fullPage','Full page']];
       if (step.selector || step.focusSelector) modes.push(['element','Element']);
       modes.forEach(([value,label]) => { const option = node('option', { value, text: label }); option.selected = (step.captureMode || 'viewport') === value; mode.appendChild(option); });
@@ -221,10 +221,10 @@
         const row = node('label', { class: 'option-row' }, node('span', { class: 'option-label', text: action.label || action.type }));
         let input;
         if (Array.isArray(action.options)) {
-          input = node('select', { class: 'option-input' });
+          input = node('select', { class: 'field field--option' });
           action.options.forEach(value => { const option = node('option', { value, text: value }); option.selected = value === action.value; input.appendChild(option); });
         } else {
-          input = node('input', { class: 'option-input', type: 'text', value: action.value ?? '' });
+          input = node('input', { class: 'field field--option', type: 'text', value: action.value ?? '' });
         }
         input.addEventListener('change', () => { action.value = input.value; markCustom(); });
         row.appendChild(input); options.appendChild(row);
@@ -262,7 +262,7 @@
     function renderPresetState() {
       document.querySelectorAll('[data-preset]').forEach(button => {
         const active = button.dataset.preset === state.activePreset;
-        button.classList.toggle('primary', active);
+        button.classList.toggle('is-active', active);
         button.setAttribute('aria-pressed', String(active));
       });
     }
@@ -566,7 +566,7 @@
 
     function enabledOnPage(page) { return page.steps.filter(step => step.enabled === true).length; }
     function miniNumber(value, onChange, label = 'Viewport dimension') {
-      const input = node('input', { class: 'mini-input', type: 'number', min: '320', max: '3840', value, 'aria-label': label });
+      const input = node('input', { class: 'field field--mini', type: 'number', min: '320', max: '3840', value, 'aria-label': label });
       input.addEventListener('change', () => { const next = Math.max(320, Math.min(3840, Number(input.value) || Number(value))); input.value = next; onChange(next); });
       return input;
     }

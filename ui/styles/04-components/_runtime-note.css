@@ -1,0 +1,23 @@
+.runtime-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) var(--space-2) 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.runtime-note__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-accent-700);
+  box-shadow: 0 0 0 4px var(--color-accent-halo);
+  animation: status-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  50% {
+    box-shadow: 0 0 0 6px var(--color-accent-halo-soft);
+  }
+}

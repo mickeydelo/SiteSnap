@@ -1,0 +1,25 @@
+.studio-shell {
+  display: grid;
+  grid-template-columns: var(--width-sidebar) minmax(0, 1fr);
+  min-height: calc(100vh - var(--height-topbar));
+}
+
+.workspace {
+  min-width: 0;
+}
+
+.content {
+  max-width: var(--width-content);
+  margin-inline: auto;
+  padding: 28px 30px var(--space-20);
+}
+
+@media (max-width: 820px) {
+  .studio-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .content {
+    padding: 22px var(--space-4) 70px;
+  }
+}

@@ -15,7 +15,7 @@
             ? ' Hosted Chromium capture is enabled; local mode remains available.'
             : ' Hosted capture needs a connected Vercel Blob store.');
         if (!sites.length) {
-          list.innerHTML = '<div class="loading">No capture projects are configured.</div>';
+          list.innerHTML = '<div class="feedback feedback--home">No capture projects are configured.</div>';
           return;
         }
         list.innerHTML = '';
@@ -24,7 +24,7 @@
           card.className = 'site-card';
           if (site.imageUrl) {
             const image = document.createElement('img');
-            image.className = 'site-image';
+            image.className = 'site-card__image';
             image.src = site.imageUrl;
             image.alt = `${site.name} capture preview`;
             image.width = 1200;
@@ -34,7 +34,7 @@
             card.appendChild(image);
           }
           const body = document.createElement('div');
-          body.className = 'site-body';
+          body.className = 'site-card__body';
           const copy = document.createElement('div');
           const title = document.createElement('h3');
           title.textContent = site.name;
@@ -42,16 +42,16 @@
           description.textContent = site.description || site.primaryUrl || '';
           copy.append(title, description);
           const launch = document.createElement('a');
-          launch.className = 'launch';
+          launch.className = 'button button--launch';
           launch.href = `/run.html?site=${encodeURIComponent(site.id)}`;
           launch.setAttribute('aria-label', `Configure ${site.name}`);
-          launch.append('Configure ', Object.assign(document.createElement('span'), { textContent: '→' }));
+          launch.append('Configure ', Object.assign(document.createElement('span'), { className: 'button__icon', textContent: '→' }));
           body.append(copy, launch);
           card.appendChild(body);
           list.appendChild(card);
         });
       } catch (error) {
-        list.innerHTML = `<div class="error">Could not load capture projects: ${escapeHtml(error.message)}</div>`;
+        list.innerHTML = `<div class="feedback feedback--home feedback--error">Could not load capture projects: ${escapeHtml(error.message)}</div>`;
       }
     }
     boot();

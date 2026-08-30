@@ -1,0 +1,8 @@
+input,
+select {
+  color: var(--color-text);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-accent-700);
+}

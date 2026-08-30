@@ -1,0 +1,130 @@
+.step-card {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card-flat);
+  transition:
+    opacity var(--duration-standard) var(--ease-standard),
+    transform 240ms var(--ease-out),
+    border-color var(--duration-standard) var(--ease-standard),
+    box-shadow 240ms var(--ease-out);
+}
+
+.step-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent-700),
+    var(--color-accent-500)
+  );
+  opacity: 0.52;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+  content: "";
+}
+
+.step-card.off {
+  opacity: 0.52;
+  box-shadow: none;
+}
+
+.step-card.off::before {
+  opacity: 0;
+}
+
+.step-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-panel-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.step-head {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+
+.step-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.step-copy h3 {
+  margin: 1px 0 3px;
+  font-size: var(--font-size-lg);
+}
+
+.step-copy p {
+  min-height: var(--space-8);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.step-options {
+  display: grid;
+  gap: 9px;
+  margin-top: 13px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-divider);
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.option-label {
+  width: 88px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.dims {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.dims .field--mini {
+  width: 58px;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: var(--space-3);
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-badge);
+  border-radius: var(--radius-round);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-extra-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
