@@ -39,6 +39,7 @@ try {
     null,
     {
       includePreviews: true,
+      mobileFirst: true,
       nativeFullPage: true,
       parallelDevices: false,
     },

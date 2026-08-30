@@ -42,7 +42,7 @@ export async function run(
     await onProgress?.(message);
   };
 
-  const devices = enabledDevices(config);
+  const devices = orderedDevices(config, runtimeOptions.mobileFirst === true);
   const expectedCaptures = countTotalCaptures(config);
   const parallelDevices = runtimeOptions.parallelDevices !== false && devices.length > 1;
   const startedAt = new Date();
@@ -470,6 +470,14 @@ function enabledDevices(config) {
   const devices = Object.keys(DEFAULT_DEVICES).filter(device => resolveDeviceConfig(config, device).enabled !== false);
   if (!devices.length) throw new Error('Enable at least one capture device');
   return devices;
+}
+
+function orderedDevices(config, mobileFirst) {
+  const devices = enabledDevices(config);
+  if (!mobileFirst) return devices;
+  return devices.sort((left, right) => (
+    left === 'mobile' ? -1 : (right === 'mobile' ? 1 : 0)
+  ));
 }
 
 function enabledSteps(pageConfig, device) {

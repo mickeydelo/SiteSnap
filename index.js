@@ -395,6 +395,7 @@ async function runHostedCapture(
       null,
       {
         includePreviews: streamsProgress,
+        mobileFirst: true,
         nativeFullPage: true,
         parallelDevices: false,
       },
