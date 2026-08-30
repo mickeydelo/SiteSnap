@@ -16,13 +16,12 @@ const JOB_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_HOSTED_CAPTURES = 60;
 const IS_VERCEL = process.env.VERCEL === '1';
 const HOSTED_STORAGE_READY = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-const HOSTED_KEY_READY = Boolean(process.env.SITESNAP_CAPTURE_KEY);
-const HOSTED_CAPTURE_READY = HOSTED_STORAGE_READY && HOSTED_KEY_READY;
+const PUBLIC_CAPTURE_KEY = IS_VERCEL ? (process.env.SITESNAP_CAPTURE_KEY || '') : '';
 const RUNTIME_MODE = IS_VERCEL
-  ? (HOSTED_CAPTURE_READY ? 'vercel-capture' : 'vercel-setup')
+  ? (HOSTED_STORAGE_READY ? 'vercel-capture' : 'vercel-setup')
   : 'local';
-const CAPTURE_ENABLED = !IS_VERCEL || HOSTED_CAPTURE_READY;
-const CAPTURE_KEY_REQUIRED = IS_VERCEL && HOSTED_KEY_READY;
+const CAPTURE_ENABLED = !IS_VERCEL || HOSTED_STORAGE_READY;
+const CAPTURE_KEY_REQUIRED = false;
 
 const app = express();
 const jobs = new Map();
@@ -31,7 +30,7 @@ let localCaptureActive = false;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb', strict: true }));
-app.use(express.static(path.join(ROOT_DIR, 'public'), {
+app.use(express.static(path.join(ROOT_DIR, IS_VERCEL ? 'public' : 'ui'), {
   etag: true,
   maxAge: IS_VERCEL ? '1h' : 0,
   lastModified: true,
@@ -44,6 +43,7 @@ app.get('/api/health', (_request, response) => {
     mode: RUNTIME_MODE,
     captureEnabled: CAPTURE_ENABLED,
     captureKeyRequired: CAPTURE_KEY_REQUIRED,
+    captureKey: PUBLIC_CAPTURE_KEY || null,
     message: hostedRuntimeMessage(),
     version: APP_VERSION,
     limits: IS_VERCEL ? { maxCaptures: MAX_HOSTED_CAPTURES, maxDeviceScale: 1 } : null,
@@ -80,10 +80,8 @@ app.get('/site-image/:siteId', (request, response) => {
 app.post('/api/run', async (request, response) => {
   if (!CAPTURE_ENABLED) {
     return response.status(503).json({
-      code: HOSTED_STORAGE_READY ? 'HOSTED_CAPTURE_KEY_REQUIRED' : 'HOSTED_STORAGE_REQUIRED',
-      error: HOSTED_STORAGE_READY
-        ? 'Hosted capture needs SITESNAP_CAPTURE_KEY configured for this environment.'
-        : 'Hosted capture needs a public Vercel Blob store connected to this project.',
+      code: 'HOSTED_STORAGE_REQUIRED',
+      error: 'Hosted capture needs a public Vercel Blob store connected to this project.',
     });
   }
 
@@ -209,8 +207,10 @@ app.get('/api/download/:jobId', (request, response) => {
   return response.download(job.zipPath, path.basename(job.zipPath));
 });
 
-app.get('/run', (_request, response) => {
-  response.sendFile(path.join(ROOT_DIR, 'public', 'run.html'));
+app.get('/run', (request, response) => {
+  const queryIndex = request.originalUrl.indexOf('?');
+  const query = queryIndex >= 0 ? request.originalUrl.slice(queryIndex) : '';
+  response.redirect(308, `/run.html${query}`);
 });
 
 app.use('/api', (_request, response) => {
@@ -433,7 +433,7 @@ function normalizeJobId(value) {
 
 function isHostedRequestAuthorized(request) {
   const expected = process.env.SITESNAP_CAPTURE_KEY;
-  if (!expected) return false;
+  if (!expected) return true;
   const authorization = request.get('authorization') || '';
   const provided = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
   const expectedBuffer = Buffer.from(expected);
@@ -446,9 +446,6 @@ function hostedRuntimeMessage() {
   if (!IS_VERCEL) return null;
   if (!HOSTED_STORAGE_READY) {
     return 'Hosted setup required · Connect a public Vercel Blob store, then redeploy to enable server capture.';
-  }
-  if (!HOSTED_KEY_READY) {
-    return 'Hosted setup required · Add SITESNAP_CAPTURE_KEY to this environment, then redeploy.';
   }
   return 'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.';
 }

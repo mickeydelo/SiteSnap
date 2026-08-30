@@ -1,5 +1,6 @@
 node_modules/
 .vercel/
+public/
 sites/**/output/
 sites/*/output/
 sites/imcivree-hcp/.DS_Store

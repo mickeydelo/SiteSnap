@@ -8,12 +8,13 @@
     "node": "22.x"
   },
   "scripts": {
+    "build": "node scripts/build-ui.js",
     "start": "node index.js",
     "dev": "SITESNAP_DEBUG=1 node index.js",
     "setup": "npm install && npx playwright install chromium",
-    "check": "node --check index.js && node --check core/actions.js && node --check core/browser.js && node --check core/capture.js && node --check core/runner.js && node --check core/utils.js && node --test && node scripts/check-vercel.js && node scripts/check-vercel-setup.js",
+    "check": "npm run build && node --check index.js && node --check core/actions.js && node --check core/browser.js && node --check core/capture.js && node --check core/runner.js && node --check core/utils.js && node --test && node scripts/check-vercel.js && node scripts/check-vercel-open.js",
     "test": "node --test",
-    "check:vercel": "node scripts/check-vercel.js && node scripts/check-vercel-setup.js"
+    "check:vercel": "npm run build && node scripts/check-vercel.js && node scripts/check-vercel-open.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",

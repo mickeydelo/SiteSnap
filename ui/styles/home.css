@@ -1,10 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SiteSnap · Capture studio</title>
-  <style>
     :root {
       --ink: #142936;
       --muted: #667984;
@@ -16,6 +9,7 @@
       --navy: #102a3a;
     }
     * { box-sizing: border-box; }
+    a:focus-visible { outline: 3px solid rgba(119,214,75,.5); outline-offset: 3px; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -63,74 +57,15 @@
       .shell { padding-top: 24px; }
       .proof { margin-bottom: 12px; }
     }
-  </style>
-</head>
-<body>
-  <div class="shell">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="13" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="11.5" r="3" fill="currentColor"/><path d="M8 21h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </div>
-      <div><strong>SiteSnap</strong><span>Local capture studio</span></div>
-    </div>
-
-    <main>
-      <section class="intro">
-        <div class="eyebrow">Fast · exact · configurable</div>
-        <h1>Capture every state that matters.</h1>
-        <p>A focused production workflow for full pages, responsive viewports, live financial data, interactive tables, and modal states.</p>
-        <div class="proof">
-          <div><strong>2</strong><small>device passes</small></div>
-          <div><strong>1×</strong><small>page load per pass</small></div>
-          <div><strong>ZIP</strong><small>organized output</small></div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="projects-title">
-        <div class="panel-head"><h2 id="projects-title">Capture projects</h2><span>Choose a suite</span></div>
-        <div class="site-list" id="sites"><div class="loading">Loading local configuration…</div></div>
-        <div class="local-note" id="runtime-note"><span class="dot"></span> Local capture keeps screenshots on this computer.</div>
-      </section>
-    </main>
-  </div>
-
-  <script>
-    async function boot() {
-      const list = document.getElementById('sites');
-      try {
-        const [sitesResponse, healthResponse] = await Promise.all([
-          fetch('/api/sites'),
-          fetch('/api/health', { cache: 'no-store' }),
-        ]);
-        if (!sitesResponse.ok) throw new Error(`HTTP ${sitesResponse.status}`);
-        if (!healthResponse.ok) throw new Error(`HTTP ${healthResponse.status}`);
-        const sites = await sitesResponse.json();
-        const health = await healthResponse.json();
-        document.getElementById('runtime-note').lastChild.textContent = health.mode === 'local'
-          ? ' Local capture keeps screenshots on this computer.'
-          : (health.captureEnabled
-            ? ' Hosted Chromium capture is enabled; local mode remains available.'
-            : ' Hosted capture needs a connected Vercel Blob store.');
-        if (!sites.length) {
-          list.innerHTML = '<div class="loading">No capture projects are configured.</div>';
-          return;
-        }
-        list.innerHTML = '';
-        sites.forEach(site => {
-          const card = document.createElement('article');
-          card.className = 'site-card';
-          const image = site.imageUrl ? `<img class="site-image" src="${site.imageUrl}" alt="${escapeHtml(site.name)} capture preview">` : '';
-          card.innerHTML = `${image}<div class="site-body"><div><h3>${escapeHtml(site.name)}</h3><p>${escapeHtml(site.description || site.primaryUrl || '')}</p></div><a class="launch" href="/run?site=${encodeURIComponent(site.id)}">Configure <span>→</span></a></div>`;
-          list.appendChild(card);
-        });
-      } catch (error) {
-        list.innerHTML = `<div class="error">Could not load capture projects: ${escapeHtml(error.message)}</div>`;
-      }
+    @media (max-width: 520px) {
+      .shell { width: min(100% - 24px,1120px); }
+      .brand { margin-bottom: 34px; }
+      .proof { gap: 12px; }
+      .proof div { padding-left: 10px; }
+      .panel { padding: 14px; border-radius: 18px; }
+      .site-body { grid-template-columns: 1fr; }
+      .launch { justify-content: center; }
     }
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
     }
-    boot();
-  </script>
-</body>
-</html>

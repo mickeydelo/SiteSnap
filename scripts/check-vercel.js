@@ -10,6 +10,7 @@ process.env.SITESNAP_CAPTURE_KEY = 'test-capture-key';
 const ROOT_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'vercel.json'), 'utf8'));
 assert.equal(config.framework, 'express');
+assert.equal(config.buildCommand, 'npm run build');
 assert.equal(config.functions?.['index.js']?.maxDuration, 300);
 assert.match(config.functions?.['index.js']?.includeFiles, /core/);
 
@@ -30,7 +31,8 @@ try {
   assert.equal(health.ok, true);
   assert.equal(health.mode, 'vercel-capture');
   assert.equal(health.captureEnabled, true);
-  assert.equal(health.captureKeyRequired, true);
+  assert.equal(health.captureKeyRequired, false);
+  assert.equal(health.captureKey, 'test-capture-key');
   assert.equal(health.version, '1.1.0');
   assert.deepEqual(health.limits, { maxCaptures: 60, maxDeviceScale: 1 });
   assert.equal(
@@ -72,7 +74,18 @@ try {
 
   const pageResponse = await fetch(`${origin}/run.html?site=nuveen`);
   assert.equal(pageResponse.status, 200);
-  assert.match(await pageResponse.text(), /Hosted Chromium/);
+  const page = await pageResponse.text();
+  assert.match(page, /styles\/run\.css/);
+  assert.match(page, /scripts\/run\.js/);
+
+  const stylesheetResponse = await fetch(`${origin}/styles/run.css`);
+  assert.equal(stylesheetResponse.status, 200);
+  assert.match(stylesheetResponse.headers.get('content-type') || '', /text\/css/);
+
+  const scriptResponse = await fetch(`${origin}/scripts/run.js`);
+  assert.equal(scriptResponse.status, 200);
+  const script = await scriptResponse.text();
+  assert.doesNotMatch(script, /window\.prompt/);
 
   console.log('Vercel hosted-capture smoke check passed');
 } finally {
