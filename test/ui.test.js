@@ -41,6 +41,19 @@ test('maintained styles keep declarations on readable lines', () => {
   }
 });
 
+test('capture controls expose polished keyboard and progress feedback', () => {
+  const html = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'run.html'), 'utf8');
+  const script = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js'), 'utf8');
+  assert.match(html, /aria-keyshortcuts="\/"/);
+  assert.match(html, /aria-busy="false"/);
+  assert.match(html, /class="captures"[^>]+role="list"/);
+  assert.match(script, /event\.key === '\/'/);
+  assert.match(script, /button\.textContent = 'Capturing…'/);
+  assert.match(script, /entry\.filename \|\| 'PNG captured'/);
+  assert.match(script, /classList\.add\('modal-open'\)/);
+  assert.match(script, /'aria-current': index === state\.activePage \? 'page' : null/);
+});
+
 test('hosted progress events are parsed before the response closes', async () => {
   const encoder = new TextEncoder();
   const chunks = [

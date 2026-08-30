@@ -51,8 +51,9 @@
     }
 
     function bindStaticEvents() {
+      const search = document.getElementById('search');
       document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => applyPreset(button.dataset.preset)));
-      document.getElementById('search').addEventListener('input', event => { state.query = event.target.value.trim().toLowerCase(); renderPage(); });
+      search.addEventListener('input', event => { state.query = event.target.value.trim().toLowerCase(); renderPage(); });
       document.getElementById('capture-button').addEventListener('click', startCapture);
       document.getElementById('close-modal').addEventListener('click', closeModal);
       document.getElementById('run-modal').addEventListener('click', event => { if (event.target === event.currentTarget && !state.running) closeModal(); });
@@ -62,6 +63,23 @@
         renderPage();
       });
       document.addEventListener('keydown', event => {
+        const target = event.target;
+        const isEditing = target instanceof HTMLElement && (
+          target.matches('input, select, textarea') || target.isContentEditable
+        );
+        const modalClosed = document.getElementById('run-modal').classList.contains('hidden');
+        if (event.key === '/' && !isEditing && !state.running && modalClosed) {
+          event.preventDefault();
+          search.focus();
+          search.select();
+          return;
+        }
+        if (event.key === 'Escape' && document.activeElement === search && search.value) {
+          search.value = '';
+          state.query = '';
+          renderPage();
+          return;
+        }
         if (event.key === 'Escape' && !state.running) closeModal();
       });
       window.addEventListener('beforeunload', stopPoll);
@@ -126,7 +144,11 @@
       const nav = node('nav', { class: 'page-nav' });
       state.config.pages.forEach((page, index) => {
         const row = node('div', { class: `page-row${index === state.activePage ? ' active' : ''}${page.enabled === false ? ' disabled' : ''}` });
-        const button = node('button', { class: 'page-button', type: 'button' }, node('strong', { text: page.label }), node('small', { text: `${enabledOnPage(page)} selected` }));
+        const button = node('button', {
+          class: 'page-button',
+          type: 'button',
+          'aria-current': index === state.activePage ? 'page' : null,
+        }, node('strong', { text: page.label }), node('small', { text: `${enabledOnPage(page)} selected` }));
         button.addEventListener('click', () => { state.activePage = index; renderSidebar(); renderMobilePageSelect(); renderPage(); });
         const toggle = toggleControl(page.enabled !== false, checked => { page.enabled = checked; markCustom(); renderAll(); }, `Enable ${page.label}`);
         row.append(button, toggle); nav.appendChild(row);
@@ -263,8 +285,14 @@
         button.title = `Hosted capture supports up to ${maxCaptures} outputs per run.`;
         return;
       }
+      if (state.running) {
+        button.textContent = 'Capturing…';
+        button.disabled = true;
+        button.title = 'Capture in progress';
+        return;
+      }
       button.textContent = `Capture · ${total}`;
-      button.disabled = total === 0 || state.running;
+      button.disabled = total === 0;
       button.removeAttribute('title');
     }
 
@@ -399,9 +427,12 @@
       const thumbnail = thumbnailUrl
         ? node('img', { src: thumbnailUrl, alt: `${entry.label} preview` })
         : node('div', { class: 'capture-thumb', text: '✓', 'aria-hidden': 'true' });
-      list.appendChild(node('div', { class: 'capture-row' },
+      list.appendChild(node('div', { class: 'capture-row', role: 'listitem' },
         thumbnail,
-        node('strong', { text: entry.label })
+        node('div', { class: 'capture-copy' },
+          node('strong', { text: entry.label }),
+          node('small', { text: entry.filename || 'PNG captured' })
+        )
       ));
       state.rendered += 1;
       list.scrollTop = list.scrollHeight;
@@ -410,7 +441,7 @@
     function appendFailure(failure = {}) {
       const list = document.getElementById('captures');
       list.querySelector('.empty')?.remove();
-      list.appendChild(node('div', { class: 'capture-row failed' },
+      list.appendChild(node('div', { class: 'capture-row failed', role: 'listitem' },
         node('div', { class: 'capture-thumb', text: '!', 'aria-hidden': 'true' }),
         node('div', {},
           node('strong', { text: failure.label || 'Capture state failed' }),
@@ -432,6 +463,8 @@
     function showRunModal(total) {
       stopPoll();
       document.getElementById('run-modal').classList.remove('hidden');
+      document.body.classList.add('modal-open');
+      document.getElementById('run-panel').setAttribute('aria-busy', 'true');
       document.getElementById('run-title').textContent = `Capturing ${state.site.name}`;
       document.getElementById('run-status').textContent = 'Opening a clean browser session…';
       document.getElementById('spinner').classList.remove('hidden');
@@ -439,7 +472,7 @@
       document.getElementById('progress-fill').style.width = '0%';
       document.getElementById('progress-label').textContent = `0 of ${total}`;
       document.getElementById('run-mode-label').textContent = enabledDeviceLabel();
-      document.getElementById('captures').innerHTML = '<div class="empty">Preparing the browser and loading the first target pages…</div>';
+      document.getElementById('captures').innerHTML = '<div class="empty" role="listitem">Preparing the browser and loading the first target pages…</div>';
       const notice = document.getElementById('run-error'); notice.style.display = 'none'; notice.classList.remove('warning');
       document.getElementById('download').style.display = 'none';
       document.getElementById('close-modal').style.display = 'none';
@@ -457,6 +490,7 @@
     function finishRun(total, downloadUrl = null, status = 'done', failures = []) {
       stopPoll();
       state.running = false;
+      document.getElementById('run-panel').setAttribute('aria-busy', 'false');
       document.getElementById('spinner').classList.add('hidden');
       document.getElementById('progress').classList.remove('indeterminate');
       const isComplete = status === 'done';
@@ -490,6 +524,7 @@
     function showRunError(message) {
       stopPoll();
       state.running = false;
+      document.getElementById('run-panel').setAttribute('aria-busy', 'false');
       document.getElementById('spinner').classList.add('hidden');
       document.getElementById('progress').classList.remove('indeterminate');
       document.getElementById('run-title').textContent = 'Capture stopped';
@@ -515,7 +550,14 @@
         .catch(error => console.warn(`[SiteSnap] Capture warmup skipped: ${error.message}`));
     }
 
-    function closeModal() { if (!state.running) document.getElementById('run-modal').classList.add('hidden'); }
+    function closeModal() {
+      if (state.running) return;
+      const modal = document.getElementById('run-modal');
+      if (modal.classList.contains('hidden')) return;
+      modal.classList.add('hidden');
+      document.body.classList.remove('modal-open');
+      document.getElementById('capture-button').focus({ preventScroll: true });
+    }
     function stopPoll() { if (state.pollTimer) clearTimeout(state.pollTimer); state.pollTimer = null; }
 
     function enabledOnPage(page) { return page.steps.filter(step => step.enabled === true).length; }

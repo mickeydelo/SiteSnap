@@ -29,6 +29,8 @@
             image.alt = `${site.name} capture preview`;
             image.width = 1200;
             image.height = 675;
+            image.loading = 'eager';
+            image.decoding = 'async';
             card.appendChild(image);
           }
           const body = document.createElement('div');
@@ -42,6 +44,7 @@
           const launch = document.createElement('a');
           launch.className = 'launch';
           launch.href = `/run.html?site=${encodeURIComponent(site.id)}`;
+          launch.setAttribute('aria-label', `Configure ${site.name}`);
           launch.append('Configure ', Object.assign(document.createElement('span'), { textContent: '→' }));
           body.append(copy, launch);
           card.appendChild(body);
