@@ -8,7 +8,8 @@
 
     const state = {
       siteId: '', site: null, config: null, defaults: null,
-      activePage: 0, query: '', pollTimer: null, jobId: null, rendered: 0, processed: 0, running: false,
+      activePage: 0, query: '', pollTimer: null, jobId: null,
+      rendered: 0, renderedFailures: 0, processed: 0, running: false,
       captureKey: '', activePreset: 'recommended',
       runtime: { mode: 'local', captureEnabled: true, captureKeyRequired: false, limits: null },
     };
@@ -43,6 +44,7 @@
         }
         bindStaticEvents();
         renderAll();
+        warmCaptureRuntime();
       } catch (error) {
         document.getElementById('content').innerHTML = `<div class="empty">Unable to load configuration: ${escapeHtml(error.message)}</div>`;
       }
@@ -284,7 +286,10 @@
       const total = countCaptures();
       if (!total) return;
       state.running = true;
-      state.jobId = crypto.randomUUID(); state.rendered = 0; state.processed = 0;
+      state.jobId = crypto.randomUUID();
+      state.rendered = 0;
+      state.renderedFailures = 0;
+      state.processed = 0;
       showRunModal(total);
       updateSummary();
       try {
@@ -312,6 +317,7 @@
         const body = await response.json().catch(() => ({}));
         if (['done', 'partial', 'error'].includes(body.status)) {
           renderCaptures(body.entries || []);
+          renderFailures(body.failures || []);
           return handleTerminalResult(body, body.total || total);
         }
         poll();
@@ -362,20 +368,26 @@
         if (!response.ok) throw new Error(job.error || `HTTP ${response.status}`);
         if (job.lastLog) document.getElementById('run-status').textContent = job.lastLog;
         renderCaptures(job.entries || []);
+        renderFailures(job.failures || []);
         const total = job.total || countCaptures();
         updateRunProgress((job.entries?.length || 0) + (job.failures?.length || 0), total);
         if (['done', 'partial', 'error'].includes(job.status)) return handleTerminalResult(job, total);
-        state.pollTimer = setTimeout(poll, 900);
+        state.pollTimer = setTimeout(poll, state.processed === 0 ? 450 : 900);
       } catch (error) { showRunError(error.message); }
     }
 
     function renderCaptures(entries) {
       const list = document.getElementById('captures');
-      if (state.rendered === 0 && entries.length) list.innerHTML = '';
       for (let index = state.rendered; index < entries.length; index += 1) {
         appendCapture(entries[index]);
       }
       if (entries.length) list.scrollTop = list.scrollHeight;
+    }
+
+    function renderFailures(failures) {
+      for (let index = state.renderedFailures; index < failures.length; index += 1) {
+        appendFailure(failures[index]);
+      }
     }
 
     function appendCapture(entry) {
@@ -405,13 +417,14 @@
           node('small', { text: clipText(failure.message || 'Review the diagnostic archive.', 150) })
         )
       ));
+      state.renderedFailures += 1;
       list.scrollTop = list.scrollHeight;
     }
 
     function updateRunProgress(processed, total) {
       state.processed = Math.max(state.processed, Number(processed) || 0);
       const progress = total ? Math.min(100, Math.round((state.processed / total) * 100)) : 0;
-      document.getElementById('progress').classList.remove('indeterminate');
+      document.getElementById('progress').classList.toggle('indeterminate', state.processed === 0);
       document.getElementById('progress-fill').style.width = `${progress}%`;
       document.getElementById('progress-label').textContent = `${state.processed} of ${total}`;
     }
@@ -420,13 +433,13 @@
       stopPoll();
       document.getElementById('run-modal').classList.remove('hidden');
       document.getElementById('run-title').textContent = `Capturing ${state.site.name}`;
-      document.getElementById('run-status').textContent = 'Starting Chromium…';
+      document.getElementById('run-status').textContent = 'Opening a clean browser session…';
       document.getElementById('spinner').classList.remove('hidden');
-      document.getElementById('progress').classList.remove('indeterminate');
+      document.getElementById('progress').classList.add('indeterminate');
       document.getElementById('progress-fill').style.width = '0%';
       document.getElementById('progress-label').textContent = `0 of ${total}`;
       document.getElementById('run-mode-label').textContent = enabledDeviceLabel();
-      document.getElementById('captures').innerHTML = '<div class="empty">Screenshots will appear here as they complete.</div>';
+      document.getElementById('captures').innerHTML = '<div class="empty">Preparing the browser and loading the first target pages…</div>';
       const notice = document.getElementById('run-error'); notice.style.display = 'none'; notice.classList.remove('warning');
       document.getElementById('download').style.display = 'none';
       document.getElementById('close-modal').style.display = 'none';
@@ -485,6 +498,17 @@
     function enabledDeviceLabel() {
       const names = ['desktop', 'mobile'].filter(name => state.config.devices[name].enabled !== false);
       return names.length > 1 ? 'Desktop + mobile · isolated contexts' : `${names[0] || 'Browser'} · isolated context`;
+    }
+
+    function warmCaptureRuntime() {
+      if (state.runtime.captureEnabled === false) return;
+      const headers = {};
+      if (state.captureKey) headers.Authorization = `Bearer ${state.captureKey}`;
+      fetch('/api/warmup', { method: 'POST', headers })
+        .then(response => {
+          if (!response.ok) console.warn(`[SiteSnap] Capture warmup returned HTTP ${response.status}.`);
+        })
+        .catch(error => console.warn(`[SiteSnap] Capture warmup skipped: ${error.message}`));
     }
 
     function closeModal() { if (!state.running) document.getElementById('run-modal').classList.add('hidden'); }

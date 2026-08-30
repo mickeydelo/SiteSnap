@@ -52,6 +52,8 @@ Required project setup:
 
 Hosted runs support up to 60 outputs at 1× and upload the completed archive to a unique public Blob URL. The capture response streams status, completed/total counts, and compact preview thumbnails to the open tab while Chromium is running. Local mode remains independent of Vercel and Blob configuration.
 
+The configuration screen starts a best-effort browser-runtime warmup in the background. When capture begins, the progress panel immediately shows an indeterminate preparation state, then switches to exact counts as soon as the first state succeeds or fails.
+
 ## Source layout
 
 - `index.js` — Express API, local jobs, hosted execution, sanitization, Blob upload

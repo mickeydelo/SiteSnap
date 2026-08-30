@@ -27,6 +27,11 @@ export async function launchBrowser() {
   });
 }
 
+/** Resolve the browser package and executable before the first capture starts. */
+export async function warmBrowserRuntime() {
+  await loadBrowserRuntime();
+}
+
 /** Create a deterministic browser context with no persisted storage. */
 export async function createContext(
   browser,
@@ -109,7 +114,13 @@ export async function launchContext(
 }
 
 function loadBrowserRuntime() {
-  browserRuntimePromise ??= IS_VERCEL ? loadHostedBrowserRuntime() : loadLocalBrowserRuntime();
+  if (!browserRuntimePromise) {
+    browserRuntimePromise = (IS_VERCEL ? loadHostedBrowserRuntime() : loadLocalBrowserRuntime())
+      .catch(error => {
+        browserRuntimePromise = null;
+        throw error;
+      });
+  }
   return browserRuntimePromise;
 }
 

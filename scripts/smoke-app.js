@@ -19,9 +19,9 @@ try {
     ['/run.html?site=nuveen', 'text/html'],
     ['/styles/home.css', 'text/css'],
     ['/styles/run.css', 'text/css'],
-    ['/scripts/home.js', 'application/javascript'],
-    ['/scripts/run.js', 'application/javascript'],
-    ['/scripts/stream.js', 'application/javascript'],
+    ['/scripts/home.js', 'javascript'],
+    ['/scripts/run.js', 'javascript'],
+    ['/scripts/stream.js', 'javascript'],
     ['/api/health', 'application/json'],
     ['/api/sites', 'application/json'],
     ['/api/config/nuveen', 'application/json'],
@@ -35,6 +35,9 @@ try {
   const redirect = await fetch(`${origin}/run?site=nuveen`, { redirect: 'manual' });
   assert.equal(redirect.status, 308);
   assert.equal(redirect.headers.get('location'), '/run.html?site=nuveen');
+
+  const warmup = await fetch(`${origin}/api/warmup`, { method: 'POST' });
+  assert.equal(warmup.status, 204);
 
   const invalidJson = await fetch(`${origin}/api/run`, {
     method: 'POST',

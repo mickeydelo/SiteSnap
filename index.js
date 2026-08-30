@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID, timingSafeEqual } from 'crypto';
 import { exec } from 'child_process';
 import { rm } from 'fs/promises';
+import { warmBrowserRuntime } from './core/browser.js';
 import { run as runCaptures } from './core/runner.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -74,6 +75,32 @@ app.get('/api/config/:siteId', (request, response) => {
     return response.json(readJson(path.join(siteDir, 'config.json')));
   } catch (error) {
     return response.status(500).json({ error: `Invalid site config: ${error.message}` });
+  }
+});
+
+app.post('/api/warmup', async (request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  if (!CAPTURE_ENABLED) {
+    return response.status(503).json({
+      code: 'CAPTURE_UNAVAILABLE',
+      error: 'Capture is not available in this runtime.',
+    });
+  }
+  if (IS_VERCEL && !isHostedRequestAuthorized(request)) {
+    return response.status(401).json({
+      code: 'CAPTURE_KEY_REQUIRED',
+      error: 'The server capture key is missing or incorrect.',
+    });
+  }
+  try {
+    await warmBrowserRuntime();
+    return response.status(204).end();
+  } catch (error) {
+    console.warn('[capture warmup]', error.message);
+    return response.status(503).json({
+      code: 'CAPTURE_WARMUP_FAILED',
+      error: 'The capture browser could not be prepared.',
+    });
   }
 });
 

@@ -5,12 +5,18 @@ const NETWORK_ACTIONS = new Set(['click', 'select', 'acceptCookies']);
 /** Execute a declarative action list. Optional actions never fail the step. */
 export async function executeActions(page, actions = [], onLog = null) {
   for (const action of actions) {
+    let performed = true;
     try {
-      await executeAction(page, action);
+      performed = await executeAction(page, action) !== false;
     } catch (error) {
       if (!action.optional) throw error;
       await onLog?.(`    [optional] ${describeAction(action)} — ${error.message}`);
+      continue;
     }
+
+    // Idempotent actions report false when the page already has the requested
+    // state. Avoid paying network-idle and animation delays for a no-op.
+    if (!performed) continue;
 
     if (action.settle === 'network-idle' || action.settle === true) {
       await waitForNetworkIdle(page, Number(action.settleTimeoutMs) || 4000);
@@ -65,6 +71,12 @@ async function acceptCookies(page, action = {}) {
   ];
 
   const selector = candidates.join(', ');
+  const consentAlreadyStored = await page.evaluate(() => document.cookie
+    .split(';')
+    .some(cookie => /^(?:OptanonConsent|OptanonAlertBoxClosed)=/i.test(cookie.trim())))
+    .catch(() => false);
+  if (consentAlreadyStored) return false;
+
   const deadline = Date.now() + (Number(action.timeoutMs) || 3000);
   do {
     const elements = page.locator(selector);
@@ -141,16 +153,25 @@ async function selectOption(page, action) {
 
   const isNative = await element.evaluate(node => node.tagName === 'SELECT');
   if (isNative) {
+    const value = String(action.value);
+    const isSelected = await element.evaluate((node, requestedValue) => {
+      const selected = node.selectedOptions?.[0];
+      return node.value === requestedValue
+        || selected?.label?.trim() === requestedValue
+        || selected?.textContent?.trim() === requestedValue;
+    }, value);
+    if (isSelected) return false;
     try {
-      await element.selectOption({ label: String(action.value) });
+      await element.selectOption({ label: value });
     } catch {
-      await element.selectOption(String(action.value));
+      await element.selectOption(value);
     }
-    return;
+    return true;
   }
 
   await element.click();
   await clickByText(page, String(action.value), { exact: true, timeoutMs: timeout });
+  return true;
 }
 
 async function handleCheckbox(page, action) {

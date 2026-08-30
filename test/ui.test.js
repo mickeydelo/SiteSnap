@@ -29,6 +29,16 @@ test('hosted capture UI never asks the presenter for a key', () => {
   assert.match(script, /health\.captureKey/);
   assert.match(script, /application\/x-ndjson/);
   assert.match(script, /consumeHostedStream/);
+  assert.match(script, /\/api\/warmup/);
+  assert.match(script, /Opening a clean browser session/);
+  assert.match(script, /classList\.add\(['"]indeterminate/);
+});
+
+test('maintained styles keep declarations on readable lines', () => {
+  for (const stylesheet of ['home.css', 'run.css']) {
+    const css = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'styles', stylesheet), 'utf8');
+    assert.doesNotMatch(css, /\{[^{}\n]+;?\s*\}/, `${stylesheet} contains a compressed rule`);
+  }
 });
 
 test('hosted progress events are parsed before the response closes', async () => {

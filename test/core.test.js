@@ -8,6 +8,7 @@ import {
   sanitizeName,
   validateConfig,
 } from '../core/runner.js';
+import { executeActions } from '../core/actions.js';
 import {
   countConfiguredCaptures,
   enforceHostedLimits,
@@ -87,4 +88,38 @@ test('filenames are deterministic and filesystem-safe', () => {
   assert.equal(sanitizeName('Morningstar Ratings · Class I'), 'morningstar-ratings-class-i');
   assert.equal(sanitizeName('../../'), 'capture');
   assert.equal(sanitizeName('A'.repeat(150)).length, 100);
+});
+
+test('native select actions skip waits when the requested option is already selected', async () => {
+  let selectCalls = 0;
+  let networkWaits = 0;
+  let delayCalls = 0;
+  const element = {
+    waitFor: async () => {},
+    evaluate: async (callback, argument) => callback({
+      tagName: 'SELECT',
+      value: 'I',
+      selectedOptions: [{ label: 'I | NHMRX', textContent: 'I | NHMRX' }],
+    }, argument),
+    selectOption: async () => { selectCalls += 1; },
+  };
+  const first = () => element;
+  const filter = () => ({ first });
+  const page = {
+    locator: () => ({ filter }),
+    waitForLoadState: async () => { networkWaits += 1; },
+    waitForTimeout: async () => { delayCalls += 1; },
+  };
+
+  await executeActions(page, [{
+    type: 'select',
+    selector: '#share-class',
+    value: 'I | NHMRX',
+    settle: 'network-idle',
+    delayMs: 500,
+  }]);
+
+  assert.equal(selectCalls, 0);
+  assert.equal(networkWaits, 0);
+  assert.equal(delayCalls, 0);
 });

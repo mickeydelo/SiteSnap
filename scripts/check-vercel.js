@@ -59,6 +59,11 @@ try {
   assert.equal(runResponse.status, 401);
   assert.equal(runResult.code, 'CAPTURE_KEY_REQUIRED');
 
+  const warmupResponse = await fetch(`${origin}/api/warmup`, { method: 'POST' });
+  const warmupResult = await warmupResponse.json();
+  assert.equal(warmupResponse.status, 401);
+  assert.equal(warmupResult.code, 'CAPTURE_KEY_REQUIRED');
+
   nuveen.pages.forEach(page => page.steps.forEach(step => { step.enabled = false; }));
   const emptyRunResponse = await fetch(`${origin}/api/run`, {
     method: 'POST',

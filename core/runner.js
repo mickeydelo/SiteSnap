@@ -49,6 +49,7 @@ export async function run(
   const runDir = path.join(outputRoot, `run-${timestamp}`);
   fs.mkdirSync(runDir, { recursive: true });
 
+  await log('Preparing capture workspace…');
   await log(`[${devices.join(' + ')} — one Chromium process, isolated contexts in parallel]`);
   await log('Launching Chromium…');
   const browser = await launchBrowser();
@@ -121,7 +122,7 @@ export async function run(
 
 async function runDevice(browser, config, credentials, outputDir, runDir, device, log, runtimeOptions) {
   const deviceConfig = resolveDeviceConfig(config, device);
-  await log(`[${device}] Creating isolated context…`);
+  await log(`[${device}] Opening an isolated browser context…`);
   const { context, page } = await createContext(
     browser,
     deviceConfig.viewport,
@@ -213,24 +214,32 @@ async function runDevice(browser, config, credentials, outputDir, runDir, device
 }
 
 async function loadPage(page, url, pageConfig, log) {
-  await log(`  Loading ${pageConfig.label}…`);
+  await log(`  [${viewportLabel(page)}] Loading ${pageConfig.label}…`);
   const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
   if (response && response.status() >= 400) {
     throw new Error(`Target returned HTTP ${response.status()}: ${url}`);
   }
-  await waitForNetworkIdle(page, Number(pageConfig.networkIdleTimeoutMs) || 3000);
-  if (pageConfig.readySelector) {
-    await firstVisible(page, pageConfig.readySelector).waitFor({
+  await log(`  [${viewportLabel(page)}] Waiting for ${pageConfig.label} to settle…`);
+  const ready = pageConfig.readySelector
+    ? firstVisible(page, pageConfig.readySelector).waitFor({
       state: 'visible',
       timeout: Number(pageConfig.readyTimeoutMs) || 20000,
-    });
-  }
+    })
+    : Promise.resolve();
+  await Promise.all([
+    waitForNetworkIdle(page, Number(pageConfig.networkIdleTimeoutMs) || 3000),
+    ready,
+  ]);
   await Promise.race([
     page.evaluate(() => document.fonts?.ready).catch(() => {}),
     page.waitForTimeout(3000),
   ]);
   if (pageConfig.settleMs) await page.waitForTimeout(Number(pageConfig.settleMs));
   if (pageConfig.actions?.length) await executeActions(page, pageConfig.actions, log);
+}
+
+function viewportLabel(page) {
+  return (page.viewportSize()?.width ?? 0) <= 768 ? 'mobile' : 'desktop';
 }
 
 async function captureStep(
