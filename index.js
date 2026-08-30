@@ -31,7 +31,7 @@ let localCaptureActive = false;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb', strict: true }));
-app.use(express.static(path.join(ROOT_DIR, 'ui'), {
+app.use(express.static(path.join(ROOT_DIR, 'public'), {
   etag: true,
   maxAge: IS_VERCEL ? '1h' : 0,
   lastModified: true,
@@ -210,7 +210,7 @@ app.get('/api/download/:jobId', (request, response) => {
 });
 
 app.get('/run', (_request, response) => {
-  response.sendFile(path.join(ROOT_DIR, 'ui', 'run.html'));
+  response.sendFile(path.join(ROOT_DIR, 'public', 'run.html'));
 });
 
 app.use('/api', (_request, response) => {
