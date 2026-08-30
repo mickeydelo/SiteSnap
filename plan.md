@@ -1,45 +1,44 @@
-# SiteSnap Product Plan
+# SiteSnap product plan
 
 ## Purpose
 
-SiteSnap is a local-first screenshot studio for capturing complete responsive pages and deterministic interactive states. The current capture suite is dedicated to Nuveen, with the Nuveen High Yield Municipal Bond Fund page as the priority target.
+SiteSnap is a local-first studio for accurate, repeatable screenshots of responsive pages and deterministic interactive states. Nuveen is the reference suite; the High Yield Municipal Bond Fund page is the priority target.
 
 ## Product principles
 
-1. Accuracy: output dimensions match the configured viewport and full-page images include the complete document.
-2. Determinism: every browser pass starts without persisted storage, animations are disabled, fonts and lazy content settle before capture, and configured states use explicit selectors.
-3. Speed: desktop and mobile run in parallel, tracker/media requests are blocked, and all fund-page states share one page load per device.
-4. Isolation: a failed optional state produces a debug image and the next state reloads cleanly instead of ending the run.
-5. Control: every state can be enabled independently and can use viewport, full-page, or element capture.
+1. **Accuracy** — capture framing and dimensions match configuration, and the manifest makes output verifiable.
+2. **Truthful status** — failed states are never presented as a successful run.
+3. **Determinism** — clean contexts, fixed browser settings, disabled motion, explicit actions, and asset settling reduce visual drift.
+4. **Speed** — one browser process, parallel device contexts, shared page loads, blocked trackers/media, CDN UI assets, and low-cost ZIP packaging.
+5. **Isolation** — device storage never crosses contexts; a failed state reloads cleanly before the next state.
+6. **Control** — every state, device, viewport, editable sample value, and supported framing mode remains configurable.
+7. **Local-first resilience** — hosted changes cannot make the demo depend on Vercel, Blob, or a network service other than the capture target.
 
-## Nuveen capture coverage
+## Current Nuveen coverage
 
 - Homepage cookie notice, clean viewport, and full page.
 - Fund-page full-page baseline.
-- Hero share classes: I/NHMRX, A/NHMAX, C/NHCCX, and R6/NHMFX.
-- Performance: average annual total returns (quarterly and monthly), calendar year returns, Morningstar Medalist Ratings, and Morningstar Ratings. These default to exact whole-section element captures, including the heading, tabs, active content, and disclosures while excluding fixed site chrome.
-- Taxable Equivalent Yield modal with editable filing status and annual income.
-- Distributions overview and Since inception distribution-history modal.
-- Characteristics: exact whole-section captures for maturity breakdown, top states, sector allocation, and credit quality, plus the maturity-details modal.
-- Literature: exact whole-section captures for Fund literature and Prospectuses & reports.
+- Share classes I/NHMRX, A/NHMAX, C/NHCCX, and R6/NHMFX.
+- Average annual total returns (quarterly/monthly), calendar year returns, Morningstar Medalist Ratings, and Morningstar Ratings.
+- Editable Taxable Equivalent Yield sample modal.
+- Distributions overview and since-inception history modal.
+- Characteristics maturity, top states, sector allocation, credit quality, and optional details modal.
+- Literature Fund literature and Prospectuses & reports.
 
-## Runtime
+## Current release standard
 
-- Express serves the local UI and API.
-- Playwright drives a fresh Chromium context for each enabled device.
-- The UI sends an in-memory config override to `POST /api/run`.
-- Progress and thumbnails are available while the run is active.
-- Successful runs are retained under `sites/nuveen/output/` and packaged as ZIP files.
-- Vercel serves the same configuration UI and can execute synchronous 1× capture runs with server-compatible Chromium.
-- Hosted ZIP archives use multipart uploads to a connected public Vercel Blob store, avoiding function response-size and ephemeral-filesystem limits.
-- Hosted configuration overrides are reduced to checked-in targets, selectors, and actions before execution; an optional capture key protects compute usage.
-- The local runtime remains the canonical capture environment for live thumbnails, 2× output, retained archives, speed, and pixel accuracy.
+- Local and Vercel UI/assets load with external CSS/JS and restrictive security headers.
+- Local HTTP, configuration validation, hosted sanitization, and authorization modes have automated checks.
+- One desktop/mobile live local capture and one hosted Blob capture pass.
+- Every archive contains checksummed capture metadata and failure details.
+- Zero known production dependency vulnerabilities.
+- Developer architecture and demo recovery steps are current.
 
-## Validation expectations
+## Next-version candidates
 
-- `npm run check` passes.
-- `npm audit --omit=dev` reports zero known vulnerabilities.
-- The local health, site, config, run, status, thumbnail, and download routes return expected responses.
-- The hosted health and authorization paths pass without launching Chromium.
-- At least one desktop and one mobile live pass validates the dynamic Nuveen states.
-- Full-page output width equals the selected viewport width and includes the footer.
+- Versioned JSON schema and editor validation for third-party capture suites.
+- Distributed queue, durable status, cancellation, and per-user authorization for multi-user hosted runs.
+- Configurable Blob retention/lifecycle cleanup.
+- Visual baseline comparison and pixel-diff reports using manifest checksums.
+- Saved UI presets and named capture profiles.
+- CI selector canaries for target sites that change frequently.

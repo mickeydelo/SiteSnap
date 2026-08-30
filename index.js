@@ -29,6 +29,17 @@ let hostedCaptureActive = false;
 let localCaptureActive = false;
 
 app.disable('x-powered-by');
+app.use((_request, response, next) => {
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; frame-ancestors 'self'; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'",
+  );
+  next();
+});
 app.use(express.json({ limit: '256kb', strict: true }));
 app.use(express.static(path.join(ROOT_DIR, IS_VERCEL ? 'public' : 'ui'), {
   etag: true,

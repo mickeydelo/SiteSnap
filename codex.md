@@ -1,42 +1,34 @@
-# Working Notes — SiteSnap
+# Working notes — SiteSnap
 
-## Current architecture
+Read `docs/ARCHITECTURE.md` before changing runtime boundaries or capture semantics. Read `docs/DEMO_RUNBOOK.md` before a presentation.
 
-- Local server and job state: `index.js`
-- Browser/context setup: `core/browser.js`
-- Declarative actions: `core/actions.js`
-- Page/device orchestration: `core/runner.js`
-- Screenshot stabilization: `core/capture.js`
-- Nuveen suite: `sites/nuveen/config.json`
-- Configuration UI: `ui/run.html`
+## Non-negotiable invariants
 
-## Important behavior
+- Local mode is the canonical runtime and must pass after every hosted change.
+- Vercel configuration cannot override checked-in URLs, paths, selectors, or action types.
+- A run is `done` only when every requested screenshot succeeds. Preserve `partial` results, debug images, and the manifest.
+- Desktop and mobile use isolated contexts in one Chromium process.
+- Do not pre-dismiss OneTrust globally; the homepage cookie-notice state depends on a clean context.
+- Keep `ui/` as source. Never edit generated `public/`; run `npm run build`.
+- Keep styles in CSS files and behavior in JavaScript files. The zero-build client is intentional.
+- Hosted output is 1× and Blob-backed. Local supports 1×/2×, thumbnails, and retained archives.
+- The hosted key is intentionally bootstrapped to the UI with no prompt. Treat it as demo convenience, not security.
 
-- Nuveen’s region/site switcher is bypassed with explicit Individual Investor cookies.
-- OneTrust is not pre-dismissed so the cookie-notice capture remains available.
-- The fund page runs once per device; share classes, tables, and modals transition in sequence.
-- Failed states are isolated. A debug viewport is saved and the next state reloads cleanly.
-- Full-page capture expands height without a fixed cap. This avoids native full-page capture including Nuveen’s off-canvas utility drawer.
-- Desktop and mobile contexts run in parallel and never share cookies or storage.
-- Output is local and credentials are not used.
-- Vercel serves a read-only configuration preview. It never imports or launches the local Playwright runner.
-- `VERCEL=1` is the runtime boundary: health reports `vercel-preview` and capture requests return `LOCAL_CAPTURE_ONLY`.
+## Nuveen selector strategy
 
-## Selector strategy
+- Use native controls such as `#myselect`, `#tey-filing-status`, and `#annual-income`.
+- Scope data tables by visible headings rather than generated GUIDs.
+- Prefer modal data attributes with visible-text fallbacks.
+- Performance, Characteristics, and Literature element captures target the whole tabbed product section, not only the active tab header.
+- Restore the relevant tab before opening a details modal when other tabs hide its trigger.
 
-- Prefer native controls (`#myselect`, `#tey-filing-status`, `#annual-income`).
-- Scope data tables by their visible `h3` title instead of generated GUID IDs.
-- Use Nuveen modal data attributes when available, with visible-text fallbacks.
-- Restore the Maturity tab before opening maturity details because other characteristic tabs hide that CTA.
-
-## Quick verification
+## Release gate
 
 ```bash
 npm run check
 npm audit --omit=dev
-npm start
+npm run verify:capture
+npm run verify:hosted
 ```
 
-`npm run check` also runs the Vercel preview smoke check. No Vercel environment variables are required.
-
-Use `npm run dev` for a visible, slowed browser when a live selector changes.
+Then inspect Vercel runtime logs, verify Blob download, confirm `git status -sb` is clean, and ensure the milestone commit is pushed.

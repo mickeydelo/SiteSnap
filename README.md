@@ -1,49 +1,65 @@
 # SiteSnap
 
-Local screenshot studio configured for Nuveen, with the High Yield Municipal Bond Fund page as the primary capture target.
+SiteSnap is a local-first screenshot studio for deterministic, presentation-grade captures of responsive pages and interactive states. The checked-in suite targets Nuveen, with the High Yield Municipal Bond Fund page as the priority.
 
 ## Run locally
+
+Prerequisite: Node.js 22.
 
 ```bash
 npm run setup
 npm start
 ```
 
-`npm run setup` installs dependencies and the matching Chromium build. `npm start` opens the studio at `http://localhost:3000` (or the next free port).
+`npm run setup` installs dependencies and the matching local Chromium build. `npm start` opens `http://localhost:3000` (or the next free port). Local mode is the reference runtime: it supports live thumbnails, retained output, 1×/2× captures, and unrestricted run sizes.
 
-Use `npm run dev` to run Chromium visibly with slowed interactions for selector debugging.
+Use `npm run dev` to run Chromium visibly with slowed interactions while debugging selectors.
 
 ## Capture workflow
 
-- Choose **Nuveen** and configure the recommended, essential, or all-states preset.
-- Enable desktop and/or mobile, adjust viewport dimensions, and choose 1× or 2× output.
-- Toggle individual states such as NHMAX/NHCCX/NHMFX, every performance tab (including quarterly/monthly average returns), TEY sample data, distribution history, and characteristic views.
-- Change any state between viewport, full-page, or element capture when the target supports it.
-- Download the completed ZIP. Runs are also retained under `sites/nuveen/output/` for local review.
+1. Choose **Nuveen**.
+2. Select Recommended, Essential only, All states, or configure individual states.
+3. Enable desktop and/or mobile and adjust viewport dimensions.
+4. Choose viewport, full-page, or exact element framing where supported.
+5. Capture and download the ZIP.
 
-Run `npm run check` for syntax validation.
+Every archive contains device folders plus `manifest.json`. The manifest records the runtime, browser version, timing, requested/completed counts, exact PNG dimensions, byte sizes, SHA-256 checksums, and any failed states. Partial runs are clearly identified and include debug screenshots.
 
-## Run captures on Vercel
+## Verification commands
 
-The Vercel deployment can run the same capture configuration with a server-compatible Chromium build. Local mode remains the reference workflow and is unchanged; hosted mode is useful when a capture needs to run away from the demo computer.
+```bash
+npm run check
+npm audit --omit=dev
+npm run verify:capture
+npm run verify:hosted
+```
 
-The repository includes `vercel.json`. In the Vercel import screen use:
+- `npm run check` builds the UI, runs unit tests, checks local HTTP/assets/security behavior, and validates both hosted configuration modes without launching Chromium.
+- `npm run verify:capture` performs a disposable desktop-and-mobile capture against live Nuveen using local Chromium.
+- `npm run verify:hosted` performs one live Vercel capture and verifies the Blob ZIP. Override the deployment with `SITESNAP_BASE_URL=https://...`.
 
-- Application preset: **Express**
-- Root directory: `./`
-- Build and output settings: leave the detected defaults
-- Function duration: supplied by `vercel.json` as 300 seconds
+## Vercel deployment
 
-After importing the project:
+The repository is configured for the Express preset. Vercel runs `npm run build`, which copies the maintained `ui/` source to generated `public/` assets served by Vercel's CDN. The Express application becomes one Fluid Compute function with a 300-second limit.
 
-1. Create a **public Vercel Blob** store and connect it to this project. Vercel adds `BLOB_READ_WRITE_TOKEN` automatically.
-2. Recommended: add `SITESNAP_CAPTURE_KEY` as a Production and Preview environment variable. The studio asks for this key before a hosted run so public visitors cannot spend capture resources.
-3. Confirm Fluid Compute is enabled for the project, then redeploy.
+Required project setup:
 
-Hosted runs are synchronous, support up to 60 screenshots at 1×, and require the browser tab to remain open. The completed ZIP is uploaded directly to a unique public Blob URL because capture archives can exceed Vercel's function-response limit. Review or remove old archives from the Blob store when they are no longer needed.
+1. Connect a **public Vercel Blob** store. Vercel supplies `BLOB_READ_WRITE_TOKEN`.
+2. Keep Fluid Compute enabled.
+3. Deploy from the repository root with the Express preset.
 
-If Blob is not connected, the hosted UI stays available for configuration and shows a setup-required banner instead of a capture button.
+`SITESNAP_CAPTURE_KEY` is optional. When present, the server still validates it, but the hosted UI obtains and sends it automatically so the presenter never sees a prompt. When absent, hosted capture is open. This is an intentional demo convenience, not an access-control boundary.
 
-Then select **Deploy**. `npm start` remains the primary local application and continues to support live thumbnails, local ZIP retention, 2× output, and unrestricted local runs.
+Hosted runs are synchronous, support up to 60 outputs at 1×, and upload the completed archive to a unique public Blob URL. Local mode remains independent of Vercel and Blob configuration.
 
-Run `npm run check:vercel` to smoke-test hosted runtime detection, configuration delivery, and capture-key protection without launching Chromium.
+## Source layout
+
+- `index.js` — Express API, local jobs, hosted execution, sanitization, Blob upload
+- `core/` — browser lifecycle, actions, orchestration, screenshots, manifests, ZIP creation
+- `ui/` — maintained HTML, CSS, and JavaScript source
+- `scripts/build-ui.js` — deterministic UI-to-`public/` build for Vercel's CDN
+- `sites/nuveen/` — metadata and declarative capture suite
+- `test/` — configuration, security-boundary, and UI-contract tests
+- `docs/` — architecture and demo runbook
+
+See [Architecture](docs/ARCHITECTURE.md) and [Demo runbook](docs/DEMO_RUNBOOK.md) before extending or presenting the app.
