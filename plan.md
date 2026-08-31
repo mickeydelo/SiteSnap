@@ -1,8 +1,8 @@
-# SiteSnap product plan
+# Halux product plan
 
 ## Purpose
 
-SiteSnap is a local-first studio for accurate, repeatable screenshots of responsive pages and deterministic interactive states. Nuveen is the reference suite; the High Yield Municipal Bond Fund page is the priority target.
+Halux is a local-first studio for making responsive pages and deterministic interactive states fully visible through accurate, repeatable screenshots. Nuveen is the reference suite; the High Yield Municipal Bond Fund page is the priority target.
 
 ## Product principles
 

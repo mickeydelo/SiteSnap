@@ -20,6 +20,7 @@ try {
     ['/styles/index.css', 'text/css'],
     ['/styles/01-settings/_colors.css', 'text/css'],
     ['/styles/04-components/_button.css', 'text/css'],
+    ['/assets/halux-prism.svg', 'image/svg\\+xml'],
     ['/scripts/home.js', 'javascript'],
     ['/scripts/run.js', 'javascript'],
     ['/scripts/stream.js', 'javascript'],

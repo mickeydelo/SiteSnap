@@ -1,4 +1,4 @@
-# Working notes — SiteSnap
+# Working notes — Halux
 
 Read `docs/ARCHITECTURE.md` before changing runtime boundaries or capture semantics. Read `docs/DEMO_RUNBOOK.md` before a presentation.
 

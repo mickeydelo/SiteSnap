@@ -24,6 +24,22 @@
   pointer-events: none;
 }
 
+.project-panel::after {
+  position: absolute;
+  inset: 0 var(--space-6) auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--color-spectrum-violet),
+    var(--color-spectrum-blue),
+    var(--color-spectrum-teal),
+    var(--color-spectrum-amber)
+  );
+  border-radius: 0 0 var(--radius-round) var(--radius-round);
+  opacity: 0.78;
+  content: "";
+}
+
 .project-panel__header {
   display: flex;
   align-items: end;

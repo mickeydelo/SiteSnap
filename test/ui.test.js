@@ -24,15 +24,24 @@ test('UI source uses external styles and scripts', () => {
     assert.doesNotMatch(html, /<script>(.|\n)*<\/script>/i);
     assert.match(html, /rel="stylesheet" href="\/styles\/index\.css"/);
     assert.match(html, /<script[^>]+src=/);
+    assert.match(html, /Halux/);
+    assert.doesNotMatch(html, /SiteSnap/);
   }
   assert.ok(fs.statSync(path.join(UI_DIR, 'styles', 'index.css')).size > 1000);
   assert.ok(fs.statSync(path.join(UI_DIR, 'scripts', 'run.js')).size > 1000);
 });
 
+test('Halux brand mark is a transparent four-bar SVG', () => {
+  const logo = fs.readFileSync(path.join(UI_DIR, 'assets', 'halux-prism.svg'), 'utf8');
+  assert.match(logo, /<svg[^>]+viewBox="0 0 88 48"/);
+  assert.equal((logo.match(/<path\b/g) || []).length, 4);
+  assert.doesNotMatch(logo, /<rect\b|<image\b/);
+});
+
 test('hosted capture UI never asks the presenter for a key', () => {
   const html = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'run.html'), 'utf8');
   const script = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js'), 'utf8');
-  assert.doesNotMatch(script, /window\.prompt|Enter the SiteSnap server capture key/i);
+  assert.doesNotMatch(script, /window\.prompt|Enter the Halux server capture key/i);
   assert.doesNotMatch(html, /runtime-banner|Hosted capture ready/i);
   assert.doesNotMatch(script, /getElementById\(['"]runtime-(?:banner|title|message)/);
   assert.match(script, /console\.(?:info|warn)/);

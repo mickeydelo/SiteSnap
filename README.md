@@ -1,6 +1,6 @@
-# SiteSnap
+# Halux
 
-SiteSnap is a local-first screenshot studio for deterministic, presentation-grade captures of responsive pages and interactive states. The checked-in suite targets Nuveen, with the High Yield Municipal Bond Fund page as the priority.
+Halux is a local-first instrument for making every reviewable webpage state visible in a deterministic, presentation-grade archive. It reveals what is already there—desktop, mobile, consent, data, and interactive states—without inventing or omitting anything. The checked-in suite targets Nuveen, with the High Yield Municipal Bond Fund page as the priority.
 
 ## Run locally
 

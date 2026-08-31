@@ -1,7 +1,7 @@
 {
-  "name": "sitesnap",
+  "name": "halux",
   "version": "1.2.1",
-  "description": "Local configurable screenshot studio for responsive pages and interactive states",
+  "description": "Review-ready webpage state capture studio",
   "type": "module",
   "main": "index.js",
   "engines": {

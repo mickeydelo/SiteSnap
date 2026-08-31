@@ -18,6 +18,21 @@
   backdrop-filter: blur(18px);
 }
 
+.topbar::after {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--color-spectrum-violet),
+    var(--color-spectrum-blue),
+    var(--color-spectrum-teal),
+    var(--color-spectrum-amber)
+  );
+  opacity: 0.55;
+  content: "";
+}
+
 .topbar__divider {
   width: 1px;
   height: var(--space-6);

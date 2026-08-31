@@ -38,7 +38,7 @@
         const hosted = state.runtime.mode !== 'local';
         document.getElementById('project-note').textContent = state.site.description || 'Capture configuration';
         if (hosted) {
-          const runtimeMessage = `[SiteSnap] ${state.runtime.message || `Runtime mode: ${state.runtime.mode}`}`;
+          const runtimeMessage = `[Halux] ${state.runtime.message || `Runtime mode: ${state.runtime.mode}`}`;
           if (state.runtime.captureEnabled) console.info(runtimeMessage);
           else console.warn(runtimeMessage);
         }
@@ -549,9 +549,9 @@
       if (state.captureKey) headers.Authorization = `Bearer ${state.captureKey}`;
       fetch('/api/warmup', { method: 'POST', headers })
         .then(response => {
-          if (!response.ok) console.warn(`[SiteSnap] Capture warmup returned HTTP ${response.status}.`);
+          if (!response.ok) console.warn(`[Halux] Capture warmup returned HTTP ${response.status}.`);
         })
-        .catch(error => console.warn(`[SiteSnap] Capture warmup skipped: ${error.message}`));
+        .catch(error => console.warn(`[Halux] Capture warmup skipped: ${error.message}`));
     }
 
     function closeModal() {

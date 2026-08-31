@@ -666,7 +666,7 @@ function setHostedCache(response, seconds) {
 function startServer(port) {
   const server = app.listen(port, () => {
     const url = `http://localhost:${port}`;
-    console.log(`SiteSnap → ${url}`);
+    console.log(`Halux → ${url}`);
     if (process.env.SITESNAP_NO_OPEN === '1') return;
     const command = process.platform === 'win32'
       ? `start ${url}`

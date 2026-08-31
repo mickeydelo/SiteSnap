@@ -1,8 +1,8 @@
-# SiteSnap architecture
+# Halux architecture
 
 ## Product purpose
 
-SiteSnap turns a declarative capture suite into deterministic PNGs for full pages, responsive viewports, and interactive states that ordinary screenshot tools cannot reproduce reliably. The Nuveen fund page is both the current product target and the reference implementation for future sites.
+Halux turns a declarative review suite into deterministic PNGs for full pages, responsive viewports, and interactive states that ordinary screenshot tools cannot reproduce reliably. Like a prism revealing the colors already present in white light, Halux makes existing page states visible without creating or omitting them. The Nuveen fund page is both the current product target and the reference implementation for future sites.
 
 Accuracy is more important than raw throughput. Speed improvements must preserve clean browser state, explicit waits, exact framing, and truthful failure reporting. Local mode is the canonical demo and pixel-reference environment; Vercel is a convenient hosted execution path.
 
