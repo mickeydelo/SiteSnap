@@ -1,4 +1,4 @@
-.captures {
+.capture-list {
   display: grid;
   min-height: 160px;
   overflow: auto;
@@ -7,7 +7,7 @@
   background: var(--color-surface-list);
 }
 
-.capture-row {
+.capture-list__item {
   display: grid;
   grid-template-columns: 132px 1fr;
   gap: var(--space-3);
@@ -23,59 +23,59 @@
     box-shadow var(--duration-fast) var(--ease-standard);
 }
 
-.capture-row:hover {
+.capture-list__item:hover {
   border-color: var(--color-border-feedback);
   box-shadow: var(--shadow-sm);
 }
 
-.capture-row img,
-.capture-thumb {
+.capture-list__item img,
+.capture-list__thumb {
   width: 132px;
   height: 76px;
   background: var(--color-surface-preview);
   border-radius: 7px;
 }
 
-.capture-row img {
+.capture-list__item img {
   object-fit: cover;
   object-position: top;
 }
 
-.capture-thumb {
+.capture-list__thumb {
   display: grid;
   place-items: center;
   color: var(--color-text-placeholder);
   font-size: 22px;
 }
 
-.capture-row strong {
+.capture-list__item strong {
   display: block;
   font-size: var(--font-size-sm);
 }
 
-.capture-copy {
+.capture-list__copy {
   min-width: 0;
 }
 
-.capture-copy small {
+.capture-list__copy small {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.capture-row small {
+.capture-list__item small {
   display: block;
   margin-top: 3px;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
 
-.capture-row.failed {
+.capture-list__item--failed {
   background: var(--color-danger-surface-soft);
   border-color: var(--color-danger-border-soft);
 }
 
-.capture-row.failed .capture-thumb {
+.capture-list__item--failed .capture-list__thumb {
   color: var(--color-danger);
   background: var(--color-surface-failure);
   font-weight: var(--font-weight-black);
@@ -89,12 +89,12 @@
 }
 
 @media (max-width: 520px) {
-  .capture-row {
+  .capture-list__item {
     grid-template-columns: 86px 1fr;
   }
 
-  .capture-row img,
-  .capture-thumb {
+  .capture-list__item img,
+  .capture-list__thumb {
     width: 86px;
     height: 54px;
   }

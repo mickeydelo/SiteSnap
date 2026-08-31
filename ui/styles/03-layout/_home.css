@@ -8,8 +8,9 @@
     ),
     linear-gradient(
       145deg,
-      var(--color-brand-950) 0 42%,
-      var(--color-surface-home) 42% 100%
+      var(--color-brand-950) 0 50%,
+      var(--color-brand-700) 56%,
+      var(--color-surface-home) 56.2% 100%
     );
   line-height: var(--line-height-relaxed);
 }
@@ -31,8 +32,9 @@
   .page--home {
     background: linear-gradient(
       170deg,
-      var(--color-brand-950) 0 44%,
-      var(--color-surface-home) 44% 100%
+      var(--color-brand-950) 0 48%,
+      var(--color-brand-700) 55%,
+      var(--color-surface-home) 55.2% 100%
     );
   }
 

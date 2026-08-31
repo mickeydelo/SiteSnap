@@ -46,7 +46,7 @@
         renderAll();
         warmCaptureRuntime();
       } catch (error) {
-        document.getElementById('content').innerHTML = `<div class="empty">Unable to load configuration: ${escapeHtml(error.message)}</div>`;
+        document.getElementById('content').innerHTML = `<div class="empty-state">Unable to load configuration: ${escapeHtml(error.message)}</div>`;
       }
     }
 
@@ -111,7 +111,7 @@
         const device = state.config.devices[name];
         const maxScale = Number(state.runtime.limits?.maxDeviceScale) || 2;
         if (Number(device.deviceScaleFactor) > maxScale) device.deviceScaleFactor = maxScale;
-        const card = node('div', { class: `device${device.enabled === false ? ' disabled' : ''}` });
+        const card = node('div', { class: `device-list__item${device.enabled === false ? ' device-list__item--disabled' : ''}` });
         const deviceLabel = name === 'desktop' ? 'Desktop' : 'Mobile';
         const enabled = node('input', { type: 'checkbox', 'aria-label': `Enable ${deviceLabel}` }); enabled.checked = device.enabled !== false;
         enabled.addEventListener('change', () => {
@@ -119,7 +119,7 @@
           if (!enabled.checked && state.config.devices[other].enabled === false) { enabled.checked = true; return; }
           device.enabled = enabled.checked; markCustom(); renderAll();
         });
-        card.append(enabled, node('span', { class: 'device-name', text: deviceLabel }));
+        card.append(enabled, node('span', { class: 'device-list__name', text: deviceLabel }));
         const width = miniNumber(device.viewport.width, value => { device.viewport.width = value; markCustom(); updateSummary(); }, `${deviceLabel} viewport width`);
         const height = miniNumber(device.viewport.height, value => { device.viewport.height = value; markCustom(); updateSummary(); }, `${deviceLabel} viewport height`);
         const scale = node('select', { class: 'field field--scale', 'aria-label': `${deviceLabel} output scale` });
@@ -138,17 +138,17 @@
     function renderSidebar() {
       const sidebar = document.getElementById('sidebar');
       sidebar.innerHTML = '';
-      if (state.site.imageUrl) sidebar.appendChild(node('img', { class: 'preview', src: state.site.imageUrl, alt: `${state.site.name} preview` }));
-      if (state.site.primaryUrl) sidebar.appendChild(node('a', { class: 'target-link', href: state.site.primaryUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open live target', '↗'));
-      sidebar.appendChild(node('div', { class: 'sidebar-label', text: 'Capture pages' }));
-      const nav = node('nav', { class: 'page-nav' });
+      if (state.site.imageUrl) sidebar.appendChild(node('img', { class: 'sidebar__preview', src: state.site.imageUrl, alt: `${state.site.name} preview` }));
+      if (state.site.primaryUrl) sidebar.appendChild(node('a', { class: 'sidebar__target-link', href: state.site.primaryUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open live target', '↗'));
+      sidebar.appendChild(node('div', { class: 'sidebar__label', text: 'Capture pages' }));
+      const nav = node('nav', { class: 'sidebar__page-nav' });
       state.config.pages.forEach((page, index) => {
-        const row = node('div', { class: `page-row${index === state.activePage ? ' active' : ''}${page.enabled === false ? ' disabled' : ''}` });
+        const row = node('div', { class: `sidebar__page-row${index === state.activePage ? ' is-active' : ''}${page.enabled === false ? ' is-disabled' : ''}` });
         const button = node('button', {
           class: 'button button--page',
           type: 'button',
           'aria-current': index === state.activePage ? 'page' : null,
-        }, node('strong', { text: page.label }), node('small', { text: `${enabledOnPage(page)} selected` }));
+        }, node('strong', { class: 'button__label', text: page.label }), node('small', { class: 'button__meta', text: `${enabledOnPage(page)} selected` }));
         button.addEventListener('click', () => { state.activePage = index; renderSidebar(); renderMobilePageSelect(); renderPage(); });
         const toggle = toggleControl(page.enabled !== false, checked => { page.enabled = checked; markCustom(); renderAll(); }, `Enable ${page.label}`);
         row.append(button, toggle); nav.appendChild(row);
@@ -159,11 +159,11 @@
     function renderPage() {
       const content = document.getElementById('content');
       const page = state.config.pages[state.activePage];
-      if (!page) { content.innerHTML = '<div class="empty">No page selected.</div>'; return; }
+      if (!page) { content.innerHTML = '<div class="empty-state">No page selected.</div>'; return; }
       content.innerHTML = '';
-      const head = node('div', { class: 'page-head' },
-        node('div', { class: 'page-head-copy' }, node('h1', { text: page.label }), node('p', { text: page.path })),
-        node('div', { class: 'page-switch' }, 'Page enabled ', toggleControl(page.enabled !== false, checked => { page.enabled = checked; markCustom(); renderAll(); }, `Enable ${page.label}`))
+      const head = node('div', { class: 'page-header' },
+        node('div', { class: 'page-header__copy' }, node('h1', { text: page.label }), node('p', { text: page.path })),
+        node('div', { class: 'page-header__switch' }, 'Page enabled ', toggleControl(page.enabled !== false, checked => { page.enabled = checked; markCustom(); renderAll(); }, `Enable ${page.label}`))
       );
       content.appendChild(head);
 
@@ -176,37 +176,37 @@
         groups.get(group).push({ step, index });
       });
 
-      if (!groups.size) { content.appendChild(node('div', { class: 'empty', text: 'No capture states match this filter.' })); return; }
+      if (!groups.size) { content.appendChild(node('div', { class: 'empty-state', text: 'No capture states match this filter.' })); return; }
       for (const [groupName, entries] of groups) {
-        const section = node('section', { class: 'group' });
+        const section = node('section', { class: 'capture-group' });
         const allOn = entries.every(({ step }) => step.enabled === true);
         const groupToggle = node('button', { class: 'button button--group', type: 'button', text: allOn ? 'Disable group' : 'Enable group' });
         groupToggle.addEventListener('click', () => { entries.forEach(({ step }) => { step.enabled = !allOn; }); markCustom(); renderAll(); });
-        section.appendChild(node('div', { class: 'group-head' }, node('h2', { text: groupName }), node('span', { class: 'group-line' }), groupToggle));
-        const grid = node('div', { class: 'card-grid' });
+        section.appendChild(node('div', { class: 'capture-group__header' }, node('h2', { text: groupName }), node('span', { class: 'capture-group__line' }), groupToggle));
+        const grid = node('div', { class: 'capture-group__grid' });
         entries.forEach(({ step }) => grid.appendChild(renderStepCard(step)));
         section.appendChild(grid); content.appendChild(section);
       }
     }
 
     function renderStepCard(step) {
-      const card = node('article', { class: `step-card${step.enabled === true ? '' : ' off'}` });
+      const card = node('article', { class: `step-card${step.enabled === true ? '' : ' step-card--off'}` });
       const toggle = toggleControl(step.enabled === true, checked => { step.enabled = checked; markCustom(); renderAll(); }, `Include ${step.label}`);
       const mode = node('select', { class: 'field field--mode', 'aria-label': 'Capture mode' });
       const modes = [['viewport','Viewport'],['fullPage','Full page']];
       if (step.selector || step.focusSelector) modes.push(['element','Element']);
       modes.forEach(([value,label]) => { const option = node('option', { value, text: label }); option.selected = (step.captureMode || 'viewport') === value; mode.appendChild(option); });
       mode.addEventListener('change', () => { step.captureMode = mode.value; markCustom(); renderPage(); updateSummary(); });
-      card.appendChild(node('div', { class: 'step-head' }, toggle, node('div', { class: 'step-copy' }, node('h3', { text: step.label }), node('p', { text: step.description || '' })), mode));
+      card.appendChild(node('div', { class: 'step-card__header' }, toggle, node('div', { class: 'step-card__copy' }, node('h3', { text: step.label }), node('p', { text: step.description || '' })), mode));
 
-      const options = node('div', { class: 'step-options' });
+      const options = node('div', { class: 'step-card__options' });
       if ((step.captureMode || 'viewport') === 'viewport') {
         ['desktop','mobile'].forEach(deviceName => {
           if (deviceName === 'mobile' && step.includeMobile === false) return;
           const dimensions = step[deviceName] || clone(state.config.devices[deviceName].viewport);
           step[deviceName] = dimensions;
-          const row = node('div', { class: 'option-row' }, node('span', { class: 'option-label', text: deviceName === 'desktop' ? 'Desktop size' : 'Mobile size' }));
-          const dim = node('div', { class: 'dims' });
+          const row = node('div', { class: 'step-card__option-row' }, node('span', { class: 'step-card__option-label', text: deviceName === 'desktop' ? 'Desktop size' : 'Mobile size' }));
+          const dim = node('div', { class: 'step-card__dimensions' });
           dim.append(
             miniNumber(dimensions.width, value => { dimensions.width = value; markCustom(); }, `${step.label} ${deviceName} width`),
             node('span', { text: '×' }),
@@ -218,7 +218,7 @@
 
       (step.actions || []).forEach(action => {
         if (!action.editable) return;
-        const row = node('label', { class: 'option-row' }, node('span', { class: 'option-label', text: action.label || action.type }));
+        const row = node('label', { class: 'step-card__option-row' }, node('span', { class: 'step-card__option-label', text: action.label || action.type }));
         let input;
         if (Array.isArray(action.options)) {
           input = node('select', { class: 'field field--option' });
@@ -231,14 +231,14 @@
       });
       if (options.children.length) card.appendChild(options);
 
-      const footer = node('div', { class: 'card-footer' });
+      const footer = node('div', { class: 'step-card__footer' });
       if (!step.mobileOnly) {
         const mobile = node('input', { type: 'checkbox', 'aria-label': `Include mobile for ${step.label}` }); mobile.checked = step.includeMobile !== false;
         mobile.disabled = state.config.devices.mobile.enabled === false;
         mobile.addEventListener('change', () => { step.includeMobile = mobile.checked; markCustom(); renderAll(); });
-        footer.appendChild(node('label', { class: 'check-label' }, mobile, 'Include mobile'));
-      } else footer.appendChild(node('span', { class: 'badge', text: 'Mobile only' }));
-      if (step.waitFor || step.cleanupActions?.length) footer.appendChild(node('span', { class: 'badge', text: step.cleanupActions?.length ? 'Isolated state' : 'Waits for data' }));
+        footer.appendChild(node('label', { class: 'step-card__check' }, mobile, 'Include mobile'));
+      } else footer.appendChild(node('span', { class: 'step-card__badge', text: 'Mobile only' }));
+      if (step.waitFor || step.cleanupActions?.length) footer.appendChild(node('span', { class: 'step-card__badge', text: step.cleanupActions?.length ? 'Isolated state' : 'Waits for data' }));
       card.appendChild(footer);
       return card;
     }
@@ -424,16 +424,16 @@
 
     function appendCapture(entry) {
       const list = document.getElementById('captures');
-      list.querySelector('.empty')?.remove();
+      list.querySelector('.empty-state')?.remove();
       const thumbnailUrl = entry.thumbnailUrl || (state.runtime.mode === 'local'
         ? `/api/thumbnail/${encodeURIComponent(state.jobId)}/${entry.index}`
         : null);
       const thumbnail = thumbnailUrl
         ? node('img', { src: thumbnailUrl, alt: `${entry.label} preview` })
-        : node('div', { class: 'capture-thumb', text: '✓', 'aria-hidden': 'true' });
-      list.appendChild(node('div', { class: 'capture-row', role: 'listitem' },
+        : node('div', { class: 'capture-list__thumb', text: '✓', 'aria-hidden': 'true' });
+      list.appendChild(node('div', { class: 'capture-list__item', role: 'listitem' },
         thumbnail,
-        node('div', { class: 'capture-copy' },
+        node('div', { class: 'capture-list__copy' },
           node('strong', { text: entry.label }),
           node('small', { text: entry.filename || 'PNG captured' })
         )
@@ -444,9 +444,9 @@
 
     function appendFailure(failure = {}) {
       const list = document.getElementById('captures');
-      list.querySelector('.empty')?.remove();
-      list.appendChild(node('div', { class: 'capture-row failed', role: 'listitem' },
-        node('div', { class: 'capture-thumb', text: '!', 'aria-hidden': 'true' }),
+      list.querySelector('.empty-state')?.remove();
+      list.appendChild(node('div', { class: 'capture-list__item capture-list__item--failed', role: 'listitem' },
+        node('div', { class: 'capture-list__thumb', text: '!', 'aria-hidden': 'true' }),
         node('div', {},
           node('strong', { text: failure.label || 'Capture state failed' }),
           node('small', { text: clipText(failure.message || 'Review the diagnostic archive.', 150) })
@@ -467,7 +467,7 @@
     function showRunModal(total) {
       stopPoll();
       document.getElementById('run-modal').classList.remove('hidden');
-      document.body.classList.add('modal-open');
+      document.body.classList.add('has-open-modal');
       document.getElementById('run-panel').setAttribute('aria-busy', 'true');
       document.getElementById('run-title').textContent = `Capturing ${state.site.name}`;
       document.getElementById('run-status').textContent = 'Opening a clean browser session…';
@@ -476,8 +476,8 @@
       document.getElementById('progress-fill').style.width = '0%';
       document.getElementById('progress-label').textContent = `0 of ${total}`;
       document.getElementById('run-mode-label').textContent = enabledDeviceLabel();
-      document.getElementById('captures').innerHTML = '<div class="empty" role="listitem">Preparing the browser and loading the first target pages…</div>';
-      const notice = document.getElementById('run-error'); notice.style.display = 'none'; notice.classList.remove('warning');
+      document.getElementById('captures').innerHTML = '<div class="empty-state" role="listitem">Preparing the browser and loading the first target pages…</div>';
+      const notice = document.getElementById('run-error'); notice.style.display = 'none'; notice.classList.remove('is-warning');
       document.getElementById('download').style.display = 'none';
       document.getElementById('close-modal').style.display = 'none';
       document.getElementById('run-panel').focus();
@@ -514,7 +514,7 @@
         notice.textContent = failures.length
           ? failures.map(failure => `${failure.label}: ${clipText(failure.message, 180)}`).join(' · ')
           : 'Review the manifest and debug images in the archive.';
-        notice.classList.add('warning');
+        notice.classList.add('is-warning');
         notice.style.display = 'block';
       }
       const download = document.getElementById('download');
@@ -559,7 +559,7 @@
       const modal = document.getElementById('run-modal');
       if (modal.classList.contains('hidden')) return;
       modal.classList.add('hidden');
-      document.body.classList.remove('modal-open');
+      document.body.classList.remove('has-open-modal');
       document.getElementById('capture-button').focus({ preventScroll: true });
     }
     function stopPoll() { if (state.pollTimer) clearTimeout(state.pollTimer); state.pollTimer = null; }
@@ -573,7 +573,8 @@
     function toggleControl(checked, onChange, label = 'Toggle capture') {
       const input = node('input', { type: 'checkbox', 'aria-label': label }); input.checked = checked;
       input.addEventListener('change', () => onChange(input.checked));
-      return node('label', { class: 'toggle' }, input, node('span'));
+      input.className = 'toggle__input';
+      return node('label', { class: 'toggle' }, input, node('span', { class: 'toggle__track' }));
     }
     function node(tag, attributes = {}, ...children) {
       const element = document.createElement(tag);

@@ -73,6 +73,7 @@
   --color-surface-frosted: rgba(243, 247, 246, 0.94);
   --color-surface-translucent: rgba(255, 255, 255, 0.78);
   --color-surface-translucent-soft: rgba(255, 255, 255, 0.45);
+  --color-surface-feedback: rgba(247, 250, 249, 0.65);
   --color-topbar-start: rgba(16, 43, 58, 0.985);
   --color-topbar-end: rgba(20, 54, 70, 0.97);
   --color-border-on-dark: rgba(255, 255, 255, 0.22);

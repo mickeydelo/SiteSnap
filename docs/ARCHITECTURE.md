@@ -72,6 +72,22 @@ The optional `SITESNAP_CAPTURE_KEY` is returned by `/api/health` and applied aut
 
 The UI deliberately uses plain HTML/CSS/JavaScript. This keeps first load, local startup, and Vercel builds extremely small and avoids a client framework for a configuration surface that does not need one. Introduce a bundler only when shared UI modules or multiple complex project editors justify it.
 
+### CSS architecture
+
+`ui/styles/index.css` is the only stylesheet loaded by a page. It declares and imports the cascade layers in this order: `settings`, `base`, `layout`, `components`, `utilities`, and `overrides`.
+
+```text
+ui/styles/
+├── 01-settings/    design tokens only
+├── 02-base/        reset and element defaults
+├── 03-layout/      page-level structure
+├── 04-components/  one UI component per file
+├── 05-utilities/   single-purpose, single-property helpers
+└── 06-overrides/   cross-cutting accessibility overrides
+```
+
+Colors, typography, spacing, radii, dimensions, shadows, motion, and documented breakpoints belong in settings. Component-specific media queries stay at the bottom of that component's file. Do not add a catch-all responsive stylesheet or use `!important`; later cascade layers provide the intended override path. Because this is native zero-build CSS, settings expose custom properties from `:root`, and media-query values are repeated from the documented breakpoint tokens because CSS custom properties cannot be used in media conditions.
+
 ## Adding or changing a capture suite
 
 1. Add `sites/<site-id>/metadata.json`, `config.json`, and an optional preview image.

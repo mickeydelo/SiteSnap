@@ -80,10 +80,10 @@ try {
   const pageResponse = await fetch(`${origin}/run.html?site=nuveen`);
   assert.equal(pageResponse.status, 200);
   const page = await pageResponse.text();
-  assert.match(page, /styles\/run\.css/);
+  assert.match(page, /styles\/index\.css/);
   assert.match(page, /scripts\/run\.js/);
 
-  const stylesheetResponse = await fetch(`${origin}/styles/run.css`);
+  const stylesheetResponse = await fetch(`${origin}/styles/index.css`);
   assert.equal(stylesheetResponse.status, 200);
   assert.match(stylesheetResponse.headers.get('content-type') || '', /text\/css/);
 

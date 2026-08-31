@@ -6,17 +6,27 @@ import { fileURLToPath } from 'node:url';
 import { readNdjson } from '../ui/scripts/stream.js';
 
 const ROOT_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const UI_DIR = path.join(ROOT_DIR, 'ui');
+
+function listFiles(directory, prefix = '') {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const relativePath = path.join(prefix, entry.name);
+    return entry.isDirectory()
+      ? listFiles(path.join(directory, entry.name), relativePath)
+      : [relativePath];
+  }).sort();
+}
 
 test('UI source uses external styles and scripts', () => {
   for (const page of ['index.html', 'run.html']) {
-    const html = fs.readFileSync(path.join(ROOT_DIR, 'ui', page), 'utf8');
+    const html = fs.readFileSync(path.join(UI_DIR, page), 'utf8');
     assert.doesNotMatch(html, /<style[\s>]/i);
     assert.doesNotMatch(html, /<script>(.|\n)*<\/script>/i);
-    assert.match(html, /rel="stylesheet"/);
+    assert.match(html, /rel="stylesheet" href="\/styles\/index\.css"/);
     assert.match(html, /<script[^>]+src=/);
   }
-  assert.ok(fs.statSync(path.join(ROOT_DIR, 'ui', 'styles', 'run.css')).size > 1000);
-  assert.ok(fs.statSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js')).size > 1000);
+  assert.ok(fs.statSync(path.join(UI_DIR, 'styles', 'index.css')).size > 1000);
+  assert.ok(fs.statSync(path.join(UI_DIR, 'scripts', 'run.js')).size > 1000);
 });
 
 test('hosted capture UI never asks the presenter for a key', () => {
@@ -34,10 +44,52 @@ test('hosted capture UI never asks the presenter for a key', () => {
   assert.match(script, /classList\.add\(['"]indeterminate/);
 });
 
-test('maintained styles keep declarations on readable lines', () => {
-  for (const stylesheet of ['home.css', 'run.css']) {
-    const css = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'styles', stylesheet), 'utf8');
+test('maintained styles stay readable and follow the layered module contract', () => {
+  const stylesDirectory = path.join(UI_DIR, 'styles');
+  const stylesheets = listFiles(stylesDirectory).filter(file => file.endsWith('.css'));
+  const entrypoint = fs.readFileSync(path.join(stylesDirectory, 'index.css'), 'utf8');
+
+  assert.match(entrypoint, /^@layer settings, base, layout, components, utilities, overrides;/);
+  assert.doesNotMatch(entrypoint, /responsive\.css/);
+
+  let lastLayer = -1;
+  const importedStylesheets = [];
+  for (const match of entrypoint.matchAll(/@import url\("\.\/((\d{2})-[^"]+)"\) layer\(([^)]+)\);/g)) {
+    const layer = ['settings', 'base', 'layout', 'components', 'utilities', 'overrides'].indexOf(match[3]);
+    assert.ok(layer >= lastLayer, `${match[0]} is imported outside layer order`);
+    lastLayer = layer;
+    importedStylesheets.push(match[1]);
+  }
+
+  assert.deepEqual(importedStylesheets.sort(), stylesheets.filter(file => file !== 'index.css').sort(), 'stylesheet imports are incomplete');
+
+  for (const stylesheet of stylesheets) {
+    const css = fs.readFileSync(path.join(stylesDirectory, stylesheet), 'utf8');
     assert.doesNotMatch(css, /\{[^{}\n]+;?\s*\}/, `${stylesheet} contains a compressed rule`);
+    assert.doesNotMatch(css, /!important/, `${stylesheet} uses !important`);
+  }
+
+  for (const stylesheet of stylesheets.filter(file => file.startsWith('01-settings/'))) {
+    const css = fs.readFileSync(path.join(stylesDirectory, stylesheet), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.equal((css.match(/\{/g) || []).length, 1, `${stylesheet} must contain one variable scope`);
+    assert.equal((css.match(/:root\s*\{/g) || []).length, 1, `${stylesheet} must only use :root`);
+    for (const line of css.split('\n').map(value => value.trim()).filter(Boolean)) {
+      assert.ok(line === ':root {' || line === '}' || line.startsWith('--'), `${stylesheet} emits non-variable CSS: ${line}`);
+    }
+  }
+
+  for (const stylesheet of stylesheets.filter(file => file.startsWith('05-utilities/'))) {
+    const css = fs.readFileSync(path.join(stylesDirectory, stylesheet), 'utf8');
+    for (const rule of css.matchAll(/[^{}]+\{([^{}]+)\}/g)) {
+      assert.equal((rule[1].match(/;/g) || []).length, 1, `${stylesheet} utility has more than one declaration`);
+    }
+  }
+
+  for (const stylesheet of stylesheets.filter(file => file.startsWith('04-components/'))) {
+    const component = path.basename(stylesheet, '.css').replace(/^_/, '');
+    const css = fs.readFileSync(path.join(stylesDirectory, stylesheet), 'utf8');
+    assert.match(css, new RegExp(`\\.${component}(?:\\s|\\{|,|:|\\.)`), `${stylesheet} does not own .${component}`);
   }
 });
 
@@ -46,11 +98,11 @@ test('capture controls expose polished keyboard and progress feedback', () => {
   const script = fs.readFileSync(path.join(ROOT_DIR, 'ui', 'scripts', 'run.js'), 'utf8');
   assert.match(html, /aria-keyshortcuts="\/"/);
   assert.match(html, /aria-busy="false"/);
-  assert.match(html, /class="captures"[^>]+role="list"/);
+  assert.match(html, /class="capture-list"[^>]+role="list"/);
   assert.match(script, /event\.key === '\/'/);
   assert.match(script, /button\.textContent = 'Capturing…'/);
   assert.match(script, /entry\.filename \|\| 'PNG captured'/);
-  assert.match(script, /classList\.add\('modal-open'\)/);
+  assert.match(script, /classList\.add\('has-open-modal'\)/);
   assert.match(script, /'aria-current': index === state\.activePage \? 'page' : null/);
 });
 
@@ -75,16 +127,12 @@ test('hosted progress events are parsed before the response closes', async () =>
 });
 
 test('generated public assets exactly mirror maintained UI source', () => {
-  for (const relativePath of [
-    'index.html',
-    'run.html',
-    'styles/home.css',
-    'styles/run.css',
-    'scripts/home.js',
-    'scripts/run.js',
-    'scripts/stream.js',
-  ]) {
-    const source = fs.readFileSync(path.join(ROOT_DIR, 'ui', relativePath));
+  const sourceFiles = listFiles(UI_DIR);
+  const generatedFiles = listFiles(path.join(ROOT_DIR, 'public'));
+  assert.deepEqual(generatedFiles, sourceFiles, 'public file tree is out of sync');
+
+  for (const relativePath of sourceFiles) {
+    const source = fs.readFileSync(path.join(UI_DIR, relativePath));
     const generated = fs.readFileSync(path.join(ROOT_DIR, 'public', relativePath));
     assert.deepEqual(generated, source, `${relativePath} is out of sync`);
   }

@@ -106,19 +106,19 @@
   text-align: left;
 }
 
-.button--page strong,
-.button--page small {
+.button--page .button__label,
+.button--page .button__meta {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.button--page strong {
+.button--page .button__label {
   font-size: var(--font-size-md);
 }
 
-.button--page small {
+.button--page .button__meta {
   margin-top: 1px;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);

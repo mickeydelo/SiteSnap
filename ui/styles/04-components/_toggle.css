@@ -5,12 +5,12 @@
   flex-shrink: 0;
 }
 
-.toggle input {
+.toggle__input {
   position: absolute;
   opacity: 0;
 }
 
-.toggle span {
+.toggle__track {
   position: absolute;
   inset: 0;
   background: var(--color-toggle-track);
@@ -19,7 +19,7 @@
   transition: background var(--duration-standard) var(--ease-out);
 }
 
-.toggle span::after {
+.toggle__track::after {
   position: absolute;
   top: 3px;
   left: 3px;
@@ -32,15 +32,15 @@
   content: "";
 }
 
-.toggle input:checked + span {
+.toggle__input:checked + .toggle__track {
   background: var(--color-accent-700);
 }
 
-.toggle input:checked + span::after {
+.toggle__input:checked + .toggle__track::after {
   transform: translateX(15px);
 }
 
-.toggle input:focus-visible + span {
+.toggle__input:focus-visible + .toggle__track {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }

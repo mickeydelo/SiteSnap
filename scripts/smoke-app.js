@@ -17,8 +17,9 @@ try {
   for (const [route, contentType] of [
     ['/', 'text/html'],
     ['/run.html?site=nuveen', 'text/html'],
-    ['/styles/home.css', 'text/css'],
-    ['/styles/run.css', 'text/css'],
+    ['/styles/index.css', 'text/css'],
+    ['/styles/01-settings/_colors.css', 'text/css'],
+    ['/styles/04-components/_button.css', 'text/css'],
     ['/scripts/home.js', 'javascript'],
     ['/scripts/run.js', 'javascript'],
     ['/scripts/stream.js', 'javascript'],

@@ -18,34 +18,34 @@
   backdrop-filter: blur(18px);
 }
 
-.top-divider {
+.topbar__divider {
   width: 1px;
   height: var(--space-6);
   background: var(--color-border-on-dark-soft);
 }
 
-.project-title {
+.topbar__project {
   min-width: 0;
   flex: 1;
 }
 
-.project-title strong,
-.project-title span {
+.topbar__project strong,
+.topbar__project span {
   display: block;
 }
 
-.project-title strong {
+.topbar__project strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.project-title span {
+.topbar__project span {
   color: var(--color-text-subtle-on-dark);
   font-size: var(--font-size-sm);
 }
 
-.capture-summary {
+.topbar__summary {
   color: var(--color-text-soft-on-dark);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
@@ -59,9 +59,9 @@
     padding: 10px 15px;
   }
 
-  .project-title span,
-  .capture-summary,
-  .top-divider {
+  .topbar__project span,
+  .topbar__summary,
+  .topbar__divider {
     display: none;
   }
 }

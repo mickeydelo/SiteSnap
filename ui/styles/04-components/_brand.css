@@ -4,7 +4,7 @@
   color: var(--color-text-on-dark);
 }
 
-.brand-mark {
+.brand__mark {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -17,7 +17,7 @@
   box-shadow: var(--shadow-inset-strong);
 }
 
-.brand strong {
+.brand__name {
   letter-spacing: -0.03em;
 }
 
@@ -26,7 +26,7 @@
   margin-bottom: 66px;
 }
 
-.brand--home .brand-mark {
+.brand--home .brand__mark {
   width: 38px;
   height: 38px;
   border-radius: var(--radius-button-lg);
@@ -35,7 +35,7 @@
     var(--shadow-brand-home);
 }
 
-.brand--home strong {
+.brand--home .brand__name {
   font-size: var(--font-size-title);
 }
 
@@ -50,7 +50,7 @@
   text-decoration: none;
 }
 
-.brand--studio .brand-mark {
+.brand--studio .brand__mark {
   width: 32px;
   height: 32px;
   border-radius: 9px;
@@ -70,7 +70,7 @@
     margin-bottom: 34px;
   }
 
-  .brand--studio strong {
+  .brand--studio .brand__name {
     display: none;
   }
 }

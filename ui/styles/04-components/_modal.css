@@ -1,3 +1,7 @@
+.has-open-modal {
+  overflow: hidden;
+}
+
 .modal {
   position: fixed;
   inset: 0;
@@ -10,7 +14,7 @@
   animation: modal-in var(--duration-standard) var(--ease-standard) both;
 }
 
-.run-panel {
+.modal__panel {
   display: flex;
   width: min(var(--width-modal), 100%);
   max-height: min(var(--height-modal), calc(100vh - 48px));
@@ -23,11 +27,11 @@
   animation: panel-in 320ms var(--ease-out) both;
 }
 
-.run-panel:focus {
+.modal__panel:focus {
   outline: none;
 }
 
-.run-head {
+.modal__header {
   display: flex;
   align-items: center;
   gap: 13px;
@@ -46,7 +50,7 @@
     );
 }
 
-.spinner {
+.modal__spinner {
   width: 27px;
   height: 27px;
   border: 3px solid var(--color-spinner-track);
@@ -55,17 +59,17 @@
   animation: spin 750ms linear infinite;
 }
 
-.run-copy {
+.modal__copy {
   min-width: 0;
   flex: 1;
 }
 
-.run-copy strong,
-.run-copy span {
+.modal__copy strong,
+.modal__copy span {
   display: block;
 }
 
-.run-copy span {
+.modal__copy span {
   overflow: hidden;
   color: var(--color-text-muted-on-dark);
   font-family: var(--font-family-mono);
@@ -74,12 +78,12 @@
   white-space: nowrap;
 }
 
-.progress {
+.modal__progress {
   height: 5px;
   background: var(--color-surface-progress);
 }
 
-.progress > div {
+.modal__progress > div {
   width: 0;
   height: 100%;
   background: var(--color-accent-500);
@@ -87,16 +91,16 @@
   transition: width 250ms var(--ease-standard);
 }
 
-.progress.indeterminate {
+.modal__progress.indeterminate {
   overflow: hidden;
 }
 
-.progress.indeterminate > div {
+.modal__progress.indeterminate > div {
   width: 34%;
   animation: progress-slide 1.35s ease-in-out infinite;
 }
 
-.run-meta {
+.modal__meta {
   display: flex;
   justify-content: space-between;
   padding: 10px var(--space-5);
@@ -106,7 +110,7 @@
   font-size: var(--font-size-xs);
 }
 
-.run-error {
+.modal__notice {
   display: none;
   margin: 14px 18px 0;
   padding: 10px var(--space-3);
@@ -117,13 +121,13 @@
   font-size: var(--font-size-md);
 }
 
-.run-error.warning {
+.modal__notice.is-warning {
   color: var(--color-warning-text);
   background: var(--color-warning-surface);
   border-color: var(--color-warning-border);
 }
 
-.run-actions {
+.modal__actions {
   display: flex;
   gap: 9px;
   padding: 14px 18px 18px;
@@ -161,7 +165,7 @@
 }
 
 @media (max-width: 520px) {
-  .run-panel {
+  .modal__panel {
     max-height: calc(100vh - var(--space-6));
   }
 }

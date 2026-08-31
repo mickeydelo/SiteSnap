@@ -4,11 +4,11 @@
   min-height: calc(100vh - var(--height-topbar));
 }
 
-.workspace {
+.studio-shell__workspace {
   min-width: 0;
 }
 
-.content {
+.studio-shell__content {
   max-width: var(--width-content);
   margin-inline: auto;
   padding: 28px 30px var(--space-20);
@@ -19,7 +19,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .content {
+  .studio-shell__content {
     padding: 22px var(--space-4) 70px;
   }
 }
