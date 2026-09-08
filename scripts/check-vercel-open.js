@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { loginFetch } from './login-helper.js';
 
 process.env.VERCEL = '1';
 process.env.BLOB_READ_WRITE_TOKEN = 'vercel_blob_rw_test';
@@ -13,9 +14,10 @@ await new Promise((resolve, reject) => {
 
 const address = server.address();
 const origin = `http://127.0.0.1:${address.port}`;
+const authenticatedFetch = await loginFetch(origin);
 
 try {
-  const healthResponse = await fetch(`${origin}/api/health`);
+  const healthResponse = await authenticatedFetch(`${origin}/api/health`);
   const health = await healthResponse.json();
   assert.equal(healthResponse.status, 200);
   assert.equal(health.mode, 'vercel-capture');
@@ -24,9 +26,9 @@ try {
   assert.equal(health.captureKey, null);
   assert.match(health.message, /Hosted capture/);
 
-  const config = await fetch(`${origin}/api/config/nuveen`).then(response => response.json());
+  const config = await authenticatedFetch(`${origin}/api/config/nuveen`).then(response => response.json());
   config.pages.forEach(page => page.steps.forEach(step => { step.enabled = false; }));
-  const runResponse = await fetch(`${origin}/api/run`, {
+  const runResponse = await authenticatedFetch(`${origin}/api/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ siteId: 'nuveen', config }),
@@ -35,7 +37,7 @@ try {
   assert.equal(runResponse.status, 400);
   assert.equal(result.code, 'HOSTED_LIMIT');
 
-  console.log('Vercel public-access smoke check passed');
+  console.log('Vercel signed-in access without capture key smoke check passed');
 } finally {
   await new Promise(resolve => server.close(resolve));
 }

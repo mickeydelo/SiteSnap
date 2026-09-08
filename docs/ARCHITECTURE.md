@@ -29,14 +29,14 @@ Desktop and mobile never share cookies, storage, or viewport state. Local mode r
 
 | Concern | Local | Vercel |
 | --- | --- | --- |
-| UI source | Served directly from `ui/` | `ui/` is built to CDN-served `public/` |
+| UI source | Served directly from `ui/` | Authenticated `ui/`; only styles/branding use CDN-served `public/` |
 | Browser | `playwright` + installed Chromium | `playwright-core` + `@sparticuz/chromium` |
 | Progress | Polling, live thumbnails | Streaming NDJSON, exact count, inline thumbnails |
 | Device passes | Parallel isolated contexts in one process | Sequential mobile-then-desktop processes for serverless stability |
 | Output | Retained under the site output directory | Ephemeral `/tmp`, then public Blob ZIP |
 | Scale | 1× or 2× | 1× |
 | Run limit | Configuration/device limits only | 60 outputs and 300 seconds |
-| Authorization | Local machine boundary | Optional public bootstrap key; no presenter prompt |
+| Authorization | Shared login, signed 12-hour session | Shared login, signed 12-hour session; optional capture key |
 
 `VERCEL=1` is the only browser-runtime switch. Local behavior must never depend on Blob or Vercel variables.
 
@@ -64,11 +64,11 @@ The hosted API never executes selectors, paths, URLs, or arbitrary actions suppl
 - 1×/2× selection, with 2× rejected by hosted limits;
 - values for actions explicitly marked `editable`, including allow-listed select options.
 
-The optional `SITESNAP_CAPTURE_KEY` is returned by `/api/health` and applied automatically by the UI because the demo is intentionally frictionless. It is not security when exposed this way. If real access control becomes a requirement, stop returning the key, require authentication, and use a shared rate-limit/queue store before making the deployment public.
+The shared account in `core/auth.js` gates pages and APIs with a signed, HttpOnly, SameSite session cookie (Secure on Vercel/HTTPS). Sessions expire after 12 hours and survive serverless instance changes. Authenticated responses disable browser and CDN caching. Cross-site mutations are rejected. The optional `SITESNAP_CAPTURE_KEY` is returned only after login and applied automatically by the UI; the session is the access-control boundary. Public Blob archive URLs remain outside this login boundary.
 
 ## UI build
 
-`ui/` is the only maintained UI source. Styles live in `ui/styles/`; behavior lives in `ui/scripts/`. `npm run build` deletes and recreates generated `public/` from `ui/`. `public/` is ignored by Git so source and deploy artifacts cannot drift.
+`ui/` is the only maintained UI source. Styles live in `ui/styles/`; behavior lives in `ui/scripts/`. `npm run build` deletes and recreates generated `public/` using only `ui/styles/` and `ui/assets/`. HTML and scripts stay in the function bundle, behind Express authentication. `public/` is ignored by Git so source and deploy artifacts cannot drift.
 
 The UI deliberately uses plain HTML/CSS/JavaScript. This keeps first load, local startup, and Vercel builds extremely small and avoids a client framework for a configuration surface that does not need one. Introduce a bundler only when shared UI modules or multiple complex project editors justify it.
 

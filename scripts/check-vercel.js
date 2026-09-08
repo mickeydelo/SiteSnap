@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { loginFetch } from './login-helper.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,9 +24,10 @@ await new Promise((resolve, reject) => {
 
 const address = server.address();
 const origin = `http://127.0.0.1:${address.port}`;
+const authenticatedFetch = await loginFetch(origin);
 
 try {
-  const healthResponse = await fetch(`${origin}/api/health`);
+  const healthResponse = await authenticatedFetch(`${origin}/api/health`);
   const health = await healthResponse.json();
   assert.equal(healthResponse.status, 200);
   assert.equal(health.ok, true);
@@ -40,17 +42,17 @@ try {
     'Hosted capture · Chromium runs on Vercel and uploads the ZIP to Blob. Local mode remains the reference runtime.',
   );
 
-  const sitesResponse = await fetch(`${origin}/api/sites`);
+  const sitesResponse = await authenticatedFetch(`${origin}/api/sites`);
   const sites = await sitesResponse.json();
   assert.equal(sitesResponse.status, 200);
   assert.ok(sites.some(site => site.id === 'nuveen'));
 
-  const configResponse = await fetch(`${origin}/api/config/nuveen`);
+  const configResponse = await authenticatedFetch(`${origin}/api/config/nuveen`);
   const nuveen = await configResponse.json();
   assert.equal(configResponse.status, 200);
   assert.equal(nuveen.baseUrl, 'https://www.nuveen.com');
 
-  const runResponse = await fetch(`${origin}/api/run`, {
+  const runResponse = await authenticatedFetch(`${origin}/api/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ siteId: 'nuveen' }),
@@ -59,13 +61,13 @@ try {
   assert.equal(runResponse.status, 401);
   assert.equal(runResult.code, 'CAPTURE_KEY_REQUIRED');
 
-  const warmupResponse = await fetch(`${origin}/api/warmup`, { method: 'POST' });
+  const warmupResponse = await authenticatedFetch(`${origin}/api/warmup`, { method: 'POST' });
   const warmupResult = await warmupResponse.json();
   assert.equal(warmupResponse.status, 401);
   assert.equal(warmupResult.code, 'CAPTURE_KEY_REQUIRED');
 
   nuveen.pages.forEach(page => page.steps.forEach(step => { step.enabled = false; }));
-  const emptyRunResponse = await fetch(`${origin}/api/run`, {
+  const emptyRunResponse = await authenticatedFetch(`${origin}/api/run`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -77,23 +79,23 @@ try {
   assert.equal(emptyRunResponse.status, 400);
   assert.equal(emptyRunResult.code, 'HOSTED_LIMIT');
 
-  const pageResponse = await fetch(`${origin}/run.html?site=nuveen`);
+  const pageResponse = await authenticatedFetch(`${origin}/run.html?site=nuveen`);
   assert.equal(pageResponse.status, 200);
   const page = await pageResponse.text();
   assert.match(page, /styles\/index\.css/);
   assert.match(page, /scripts\/run\.js/);
 
-  const stylesheetResponse = await fetch(`${origin}/styles/index.css`);
+  const stylesheetResponse = await authenticatedFetch(`${origin}/styles/index.css`);
   assert.equal(stylesheetResponse.status, 200);
   assert.match(stylesheetResponse.headers.get('content-type') || '', /text\/css/);
 
-  const scriptResponse = await fetch(`${origin}/scripts/run.js`);
+  const scriptResponse = await authenticatedFetch(`${origin}/scripts/run.js`);
   assert.equal(scriptResponse.status, 200);
   const script = await scriptResponse.text();
   assert.doesNotMatch(script, /window\.prompt/);
   assert.match(script, /application\/x-ndjson/);
 
-  const streamScriptResponse = await fetch(`${origin}/scripts/stream.js`);
+  const streamScriptResponse = await authenticatedFetch(`${origin}/scripts/stream.js`);
   assert.equal(streamScriptResponse.status, 200);
   assert.match(await streamScriptResponse.text(), /readNdjson/);
 

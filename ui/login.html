@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Halux · Sign in</title>
+  <link rel="stylesheet" href="/styles/index.css">
+</head>
+<body class="page--login">
+  <main class="login">
+    <div class="brand brand--studio">
+      <span class="brand__mark" aria-hidden="true"><img src="/assets/halux-prism.svg" alt="" width="88" height="48"></span>
+      <strong class="brand__name">Halux</strong>
+    </div>
+    <h1 class="login__title">Welcome back.</h1>
+    <p class="login__description">Sign in to your capture studio.</p>
+    <p class="login__error" id="login-error" role="alert" hidden>Incorrect username or password. Please try again.</p>
+    <form class="login__form" action="/login" method="post">
+      <input type="hidden" name="next" id="login-next" value="/">
+      <label for="username">Username</label>
+      <input class="field login__input" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+      <label for="password">Password</label>
+      <input class="field login__input" id="password" name="password" type="password" autocomplete="current-password" required>
+      <button class="button button--capture login__submit" type="submit">Sign in</button>
+    </form>
+  </main>
+  <script src="/scripts/login.js" defer></script>
+</body>
+</html>

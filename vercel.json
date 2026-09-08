@@ -6,7 +6,7 @@
   "functions": {
     "index.js": {
       "maxDuration": 300,
-      "includeFiles": "{sites,core}/**",
+      "includeFiles": "{sites,core,ui}/**",
       "excludeFiles": "sites/**/output/**"
     }
   },

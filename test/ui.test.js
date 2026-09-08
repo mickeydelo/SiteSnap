@@ -18,7 +18,7 @@ function listFiles(directory, prefix = '') {
 }
 
 test('UI source uses external styles and scripts', () => {
-  for (const page of ['index.html', 'run.html']) {
+  for (const page of ['index.html', 'run.html', 'login.html']) {
     const html = fs.readFileSync(path.join(UI_DIR, page), 'utf8');
     assert.doesNotMatch(html, /<style[\s>]/i);
     assert.doesNotMatch(html, /<script>(.|\n)*<\/script>/i);
@@ -135,8 +135,8 @@ test('hosted progress events are parsed before the response closes', async () =>
   assert.equal(events[1].entry.label, 'Desktop');
 });
 
-test('generated public assets exactly mirror maintained UI source', () => {
-  const sourceFiles = listFiles(UI_DIR);
+test('CDN assets mirror only public styles and branding, never protected pages or scripts', () => {
+  const sourceFiles = listFiles(UI_DIR).filter(file => /^(styles|assets)\//.test(file));
   const generatedFiles = listFiles(path.join(ROOT_DIR, 'public'));
   assert.deepEqual(generatedFiles, sourceFiles, 'public file tree is out of sync');
 

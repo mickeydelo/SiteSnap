@@ -13,7 +13,7 @@ Read `docs/ARCHITECTURE.md` before changing runtime boundaries or capture semant
 - Keep styles in CSS files and behavior in JavaScript files. The zero-build client is intentional.
 - Hosted output is 1× and Blob-backed. Local supports 1×/2×, thumbnails, and retained archives.
 - Hosted progress uses NDJSON events and compact inline previews; retain the JSON response fallback for API clients.
-- The hosted key is intentionally bootstrapped to the UI with no prompt. Treat it as demo convenience, not security.
+- The hosted capture key is bootstrapped only to the signed-in UI. The shared login in `core/auth.js` is the access boundary. Keep protected HTML/scripts out of CDN-served `public/`.
 
 ## Nuveen selector strategy
 

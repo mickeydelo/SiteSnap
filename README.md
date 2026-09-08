@@ -15,6 +15,12 @@ npm start
 
 Use `npm run dev` to run Chromium visibly with slowed interactions while debugging selectors.
 
+## Sign in
+
+The site requires the shared `nuveen` account and the supplied password in both local and hosted modes. Credentials are maintained only in `core/auth.js`. Sessions last 12 hours; use **Sign out** to clear the browser session. Changing the password invalidates existing sessions.
+
+Pages, configuration, capture APIs, and local downloads require a signed session cookie. Styles and branding are public. Hosted Blob archives remain accessible to anyone who already has their download URL.
+
 ## Capture workflow
 
 1. Choose **Nuveen**.
@@ -40,7 +46,7 @@ npm run verify:hosted
 
 ## Vercel deployment
 
-The repository is configured for the Express preset. Vercel runs `npm run build`, which copies the maintained `ui/` source to generated `public/` assets served by Vercel's CDN. The Express application becomes one Fluid Compute function with a 300-second limit.
+The repository is configured for the Express preset. Vercel runs `npm run build`, which copies only styles and branding to generated `public/` assets served by Vercel's CDN. Protected HTML and scripts are served from `ui/` by Express after authentication. The Express application becomes one Fluid Compute function with a 300-second limit.
 
 Required project setup:
 
@@ -48,7 +54,7 @@ Required project setup:
 2. Keep Fluid Compute enabled.
 3. Deploy from the repository root with the Express preset.
 
-`SITESNAP_CAPTURE_KEY` is optional. When present, the server still validates it, but the hosted UI obtains and sends it automatically so the presenter never sees a prompt. When absent, hosted capture is open. This is an intentional demo convenience, not an access-control boundary.
+`SITESNAP_CAPTURE_KEY` is optional. When present, the server still validates it, but the hosted UI obtains and sends it automatically so the presenter never sees a prompt. When absent, hosted capture still requires login. This is an intentional demo convenience, not an access-control boundary.
 
 Hosted runs support up to 60 outputs at 1× and upload the completed archive to a unique public Blob URL. The capture response streams status, completed/total counts, and compact preview thumbnails to the open tab while Chromium is running. Local mode remains independent of Vercel and Blob configuration.
 
@@ -59,7 +65,7 @@ The configuration screen starts a best-effort browser-runtime warmup in the back
 - `index.js` — Express API, local jobs, hosted execution, sanitization, Blob upload
 - `core/` — browser lifecycle, actions, orchestration, screenshots, manifests, ZIP creation
 - `ui/` — maintained HTML, CSS, and JavaScript source
-- `scripts/build-ui.js` — deterministic UI-to-`public/` build for Vercel's CDN
+- `scripts/build-ui.js` — deterministic public styles/branding build for Vercel's CDN
 - `sites/nuveen/` — metadata and declarative capture suite
 - `test/` — configuration, security-boundary, and UI-contract tests
 - `docs/` — architecture and demo runbook

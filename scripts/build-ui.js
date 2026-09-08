@@ -11,5 +11,9 @@ if (!fs.existsSync(path.join(sourceDir, 'index.html'))) {
 }
 
 fs.rmSync(outputDir, { recursive: true, force: true });
-fs.cpSync(sourceDir, outputDir, { recursive: true });
-console.log('UI assets built → public/');
+fs.mkdirSync(outputDir, { recursive: true });
+// Vercel serves public/ before Express: never put protected pages or scripts here.
+for (const directory of ['styles', 'assets']) {
+  fs.cpSync(path.join(sourceDir, directory), path.join(outputDir, directory), { recursive: true });
+}
+console.log('Public styles and branding built → public/; pages remain behind Express login');

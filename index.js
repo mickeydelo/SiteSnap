@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import { rm } from 'fs/promises';
 import { warmBrowserRuntime } from './core/browser.js';
 import { run as runCaptures } from './core/runner.js';
+import { installLogin } from './core/auth.js';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SITES_DIR = path.join(ROOT_DIR, 'sites');
@@ -41,11 +42,12 @@ app.use((_request, response, next) => {
   );
   next();
 });
+installLogin(app, path.join(ROOT_DIR, 'ui'));
 app.use(express.json({ limit: '256kb', strict: true }));
-app.use(express.static(path.join(ROOT_DIR, IS_VERCEL ? 'public' : 'ui'), {
-  etag: true,
-  maxAge: IS_VERCEL ? '1h' : 0,
-  lastModified: true,
+app.use(express.static(path.join(ROOT_DIR, 'ui'), {
+  etag: false,
+  cacheControl: false,
+  lastModified: false,
 }));
 
 app.get('/api/health', (_request, response) => {
@@ -233,7 +235,7 @@ app.get('/api/thumbnail/:jobId/:index', (request, response) => {
   const entry = jobs.get(request.params.jobId)?.entries[Number(request.params.index)];
   if (!entry || !fs.existsSync(entry.filepath)) return response.sendStatus(404);
   response.setHeader('Content-Type', 'image/png');
-  response.setHeader('Cache-Control', 'private, max-age=600');
+  response.setHeader('Cache-Control', 'private, no-store');
   return fs.createReadStream(entry.filepath).pipe(response);
 });
 
@@ -655,12 +657,8 @@ function evictOldJobs() {
   }
 }
 
-function setHostedCache(response, seconds) {
-  if (!IS_VERCEL) return;
-  response.setHeader(
-    'Cache-Control',
-    `public, max-age=0, s-maxage=${seconds}, stale-while-revalidate=${seconds * 12}`,
-  );
+function setHostedCache(response) {
+  response.setHeader('Cache-Control', 'private, no-store');
 }
 
 function startServer(port) {

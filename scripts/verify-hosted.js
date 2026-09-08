@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict';
+import { loginFetch } from './login-helper.js';
 import { readNdjson } from '../ui/scripts/stream.js';
 
 const origin = (process.env.SITESNAP_BASE_URL || 'https://site-snap-three.vercel.app').replace(/\/$/, '');
-const healthResponse = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(30000) });
+const authenticatedFetch = await loginFetch(origin);
+const healthResponse = await authenticatedFetch(`${origin}/api/health`, { signal: AbortSignal.timeout(30000) });
 const health = await healthResponse.json();
 assert.equal(healthResponse.status, 200);
 assert.equal(health.mode, 'vercel-capture');
 assert.equal(health.captureEnabled, true);
 
-const configResponse = await fetch(`${origin}/api/config/nuveen`, { signal: AbortSignal.timeout(30000) });
+const configResponse = await authenticatedFetch(`${origin}/api/config/nuveen`, { signal: AbortSignal.timeout(30000) });
 const config = await configResponse.json();
 assert.equal(configResponse.status, 200);
 config.devices.desktop.enabled = true;
@@ -28,7 +30,7 @@ const expectedOutputs = profile === 'full-page' ? 1 : 5;
 const headers = { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' };
 if (health.captureKey) headers.Authorization = `Bearer ${health.captureKey}`;
 const startedAt = Date.now();
-const runResponse = await fetch(`${origin}/api/run`, {
+const runResponse = await authenticatedFetch(`${origin}/api/run`, {
   method: 'POST',
   headers,
   body: JSON.stringify({ siteId: 'nuveen', config }),
