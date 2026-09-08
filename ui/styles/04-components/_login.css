@@ -145,3 +145,45 @@
     margin-bottom: 0;
   }
 }
+
+@media (max-width: 820px) and (max-height: 620px) {
+  .page--login .home-header {
+    padding-block: var(--space-3);
+  }
+
+  .page--login .home-shell {
+    width: min(560px, calc(100% - (var(--space-5) * 2)));
+    padding-block: 0 var(--space-5);
+  }
+
+  .page--login .home-main {
+    display: block;
+  }
+
+  .page--login .hero,
+  .page--login .login__footer {
+    display: none;
+  }
+
+  .page--login .login {
+    padding: var(--space-5) var(--space-6);
+  }
+
+  .page--login .login__title {
+    font-size: var(--font-size-display-sm);
+  }
+
+  .page--login .login__form {
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .page--login .login__input,
+  .page--login .login__submit {
+    min-height: 44px;
+  }
+
+  .page--login .login__reveal {
+    min-height: 36px;
+  }
+}

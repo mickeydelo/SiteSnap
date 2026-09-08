@@ -22,7 +22,7 @@ test('UI source uses external styles and scripts', () => {
     const html = fs.readFileSync(path.join(UI_DIR, page), 'utf8');
     assert.doesNotMatch(html, /<style[\s>]/i);
     assert.doesNotMatch(html, /<script>(.|\n)*<\/script>/i);
-    assert.match(html, /rel="stylesheet" href="\/styles\/index\.css"/);
+    assert.match(html, /rel="stylesheet" href="\/styles\/index\.css\?v=[^"]+"/);
     assert.match(html, /<script[^>]+src=/);
     assert.match(html, /Halux/);
     assert.doesNotMatch(html, /SiteSnap/);
@@ -63,7 +63,7 @@ test('maintained styles stay readable and follow the layered module contract', (
 
   let lastLayer = -1;
   const importedStylesheets = [];
-  for (const match of entrypoint.matchAll(/@import url\("\.\/((\d{2})-[^"]+)"\) layer\(([^)]+)\);/g)) {
+  for (const match of entrypoint.matchAll(/@import url\("\.\/((\d{2})-[^"?]+)(?:\?v=[^"]+)?"\) layer\(([^)]+)\);/g)) {
     const layer = ['settings', 'base', 'layout', 'components', 'utilities', 'overrides'].indexOf(match[3]);
     assert.ok(layer >= lastLayer, `${match[0]} is imported outside layer order`);
     lastLayer = layer;
