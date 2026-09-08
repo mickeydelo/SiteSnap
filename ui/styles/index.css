@@ -35,6 +35,7 @@
 @import url("./04-components/_modal.css") layer(components);
 @import url("./04-components/_capture-list.css") layer(components);
 @import url("./04-components/_login.css") layer(components);
+@import url("./04-components/_signout.css") layer(components);
 
 @import url("./05-utilities/_display.css") layer(utilities);
 @import url("./05-utilities/_spacing.css") layer(utilities);

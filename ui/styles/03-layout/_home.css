@@ -18,7 +18,15 @@
 .home-shell {
   width: min(var(--width-home), calc(100% - (var(--space-5) * 2)));
   margin-inline: auto;
-  padding-block: 38px;
+  padding-block: var(--space-12);
+}
+
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-8);
 }
 
 .home-main {
@@ -49,6 +57,11 @@
 }
 
 @media (max-width: 520px) {
+  .home-header {
+    padding: var(--space-5) var(--space-4);
+    gap: var(--space-3);
+  }
+
   .home-shell {
     width: min(calc(100% - var(--space-6)), var(--width-home));
   }

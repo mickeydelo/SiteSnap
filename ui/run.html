@@ -16,7 +16,12 @@
     <div class="topbar__project"><strong id="project-name">Loading…</strong><span id="project-note">Local capture configuration</span></div>
     <span class="topbar__summary" id="capture-summary">0 outputs</span>
     <button class="button button--capture" id="capture-button" type="button" disabled>Capture · 0</button>
-    <form class="login__signout" action="/logout" method="post"><button class="button" type="submit">Sign out</button></form>
+    <form class="signout" action="/logout" method="post">
+      <button class="button signout__button" type="submit">
+        <svg class="signout__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M9 12h9"/></svg>
+        <span>Sign out</span>
+      </button>
+    </form>
   </header>
 
   <div class="studio-shell">

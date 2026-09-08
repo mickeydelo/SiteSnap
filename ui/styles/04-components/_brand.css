@@ -26,6 +26,10 @@
   margin-bottom: 66px;
 }
 
+.home-header .brand--home {
+  margin-bottom: 0;
+}
+
 .brand--home .brand__mark {
   width: 58px;
   height: 38px;
@@ -62,6 +66,10 @@
 }
 
 @media (max-width: 520px) {
+  .home-header .brand__subtitle {
+    display: none;
+  }
+
   .brand--home {
     margin-bottom: 34px;
   }

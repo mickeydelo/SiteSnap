@@ -6,24 +6,56 @@
   <title>Halux · Sign in</title>
   <link rel="stylesheet" href="/styles/index.css">
 </head>
-<body class="page--login">
-  <main class="login">
-    <div class="brand brand--studio">
-      <span class="brand__mark" aria-hidden="true"><img src="/assets/halux-prism.svg" alt="" width="88" height="48"></span>
-      <strong class="brand__name">Halux</strong>
+<body class="page--home page--login">
+  <header class="home-header">
+    <div class="brand brand--home">
+      <span class="brand__mark" aria-hidden="true">
+        <img src="/assets/halux-prism.svg" alt="" width="88" height="48">
+      </span>
+      <div><strong class="brand__name">Halux</strong><span class="brand__subtitle">Every state, made visible.</span></div>
     </div>
-    <h1 class="login__title">Welcome back.</h1>
-    <p class="login__description">Sign in to your capture studio.</p>
-    <p class="login__error" id="login-error" role="alert" hidden>Incorrect username or password. Please try again.</p>
-    <form class="login__form" action="/login" method="post">
-      <input type="hidden" name="next" id="login-next" value="/">
-      <label for="username">Username</label>
-      <input class="field login__input" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
-      <label for="password">Password</label>
-      <input class="field login__input" id="password" name="password" type="password" autocomplete="current-password" required>
-      <button class="button button--capture login__submit" type="submit">Sign in</button>
-    </form>
-  </main>
+  </header>
+
+  <div class="home-shell">
+    <main class="home-main">
+      <section class="hero">
+        <div class="hero__eyebrow">Complete · exact · visible</div>
+        <h1 class="hero__title">Reveal every state that matters.</h1>
+        <p class="hero__description">Halux brings desktop, mobile, consent, data, and interactive states into one clear, review-ready archive—nothing invented, nothing omitted.</p>
+        <div class="proof">
+          <div class="proof__item"><strong>2</strong><small>device passes</small></div>
+          <div class="proof__item"><strong>1×</strong><small>page load per pass</small></div>
+          <div class="proof__item"><strong>ZIP</strong><small>organized output</small></div>
+        </div>
+      </section>
+
+      <section class="project-panel login" aria-labelledby="login-title">
+        <div class="login__eyebrow">Your capture workspace</div>
+        <h2 class="login__title" id="login-title">Welcome back.</h2>
+        <p class="login__description">Sign in to reveal every state.</p>
+        <form class="login__form" action="/login" method="post" aria-busy="false">
+          <input type="hidden" name="next" id="login-next" value="/">
+          <div class="login__field">
+            <label for="username">Username</label>
+            <input class="field login__input" id="username" name="username" placeholder="Enter your username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+          </div>
+          <div class="login__field">
+            <label for="password">Password</label>
+            <div class="login__password">
+              <input class="field login__input" id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required>
+              <button class="button login__reveal" id="password-reveal" type="button" aria-label="Show password" aria-controls="password" aria-pressed="false" hidden>Show</button>
+            </div>
+          </div>
+          <p class="login__error" id="login-error" role="alert" hidden>Incorrect username or password. Please try again.</p>
+          <button class="button button--launch login__submit" type="submit"><span id="login-submit-label">Sign in</span><span class="button__icon" aria-hidden="true">→</span></button>
+        </form>
+        <div class="login__footer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg>
+          <span>Private access · Nuveen</span>
+        </div>
+      </section>
+    </main>
+  </div>
   <script src="/scripts/login.js" defer></script>
 </body>
 </html>
